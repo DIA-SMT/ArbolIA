@@ -281,3 +281,59 @@ export async function fetchPorEdad(): Promise<AgeStat[]> {
   if (error) throw error
   return (data as AgeStat[]) ?? []
 }
+
+/**
+ * Una idea puntual, si es visible para el público.
+ *
+ * La usa la pantalla cuando el equipo aprueba algo de la cola de revisión:
+ * el evento de moderación sólo trae el id, y hace falta el texto para poder
+ * plantarla. Si RLS la sigue escondiendo devuelve null, así que una idea
+ * moderada no puede colarse por este camino.
+ */
+export async function fetchIdeaById(id: string): Promise<Idea | null> {
+  const db = requirePublic()
+  const { data, error } = await db
+    .from('ideas')
+    .select(COLUMNAS_PUBLICAS)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error || !data) return null
+  return data as Idea
+}
+
+/**
+ * Ideas que dejaron de estar visibles desde un instante dado.
+ *
+ * Es el respaldo del canal de moderación: si el WebSocket se cae, retirar
+ * una idea desde el panel no llegaría nunca a la pantalla y el texto se
+ * quedaría proyectado. Con esto el ciclo de respaldo también se entera.
+ */
+export async function fetchModeracionSince(desdeId: number): Promise<
+  Array<{ id: number; idea_id: string; action: string }>
+> {
+  const db = requirePublic()
+  const { data, error } = await db
+    .from('moderation_events')
+    .select('id, idea_id, action')
+    .gt('id', desdeId)
+    .order('id', { ascending: true })
+    .limit(100)
+
+  if (error) throw error
+  return (data ?? []) as Array<{ id: number; idea_id: string; action: string }>
+}
+
+/** Id del último evento de moderación: marca de agua para el respaldo. */
+export async function fetchUltimoEvento(): Promise<number> {
+  const db = requirePublic()
+  const { data, error } = await db
+    .from('moderation_events')
+    .select('id')
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) return 0
+  return (data as { id: number }).id
+}

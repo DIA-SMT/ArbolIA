@@ -312,6 +312,36 @@ async function main() {
     )
   }
 
+  /*
+   * --- Canal de moderación ------------------------------------------
+   *
+   * La pantalla se entera de lo que el equipo modera por esta tabla, no por
+   * la de ideas: una idea que pasa a oculta deja de ser legible para el
+   * público, así que el cambio no puede viajar por ahí.
+   *
+   * Si esta tabla no fuera legible, retirar una idea desde el panel no la
+   * sacaría nunca del árbol, y aprobar una de la cola de revisión no la
+   * haría brotar.
+   */
+  console.log('\nCANAL DE MODERACIÓN')
+
+  const { data: eventos, error: eventosError } = await db
+    .from('moderation_events')
+    .select('id, idea_id, action')
+    .order('id', { ascending: false })
+    .limit(5)
+
+  check('la pantalla puede leer los eventos', !eventosError, eventosError?.message)
+
+  const acciones = [...new Set((eventos ?? []).map((e) => e.action))]
+  check(
+    'hay eventos registrados',
+    (eventos?.length ?? 0) > 0,
+    acciones.length
+      ? `acciones vistas: ${acciones.join(', ')}`
+      : 'ninguno todavía — moderá algo desde /admin y volvé a correr esto',
+  )
+
   // --- Panel: ajustes y evolución -----------------------------------
   console.log('\nPANEL')
 

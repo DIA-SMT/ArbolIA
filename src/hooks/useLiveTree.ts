@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabasePublic } from '../lib/supabase'
 import { DEMO_MODE, GOAL_FALLBACK, IS_SUPABASE_CONFIGURED, milestonesFor } from '../lib/config'
-import { EMPTY_STATS, fetchGoal, fetchIdeasSince, fetchStats, fetchTreeIdeas } from '../lib/api'
+import {
+  EMPTY_STATS,
+  fetchGoal,
+  fetchIdeaById,
+  fetchIdeasSince,
+  fetchModeracionSince,
+  fetchStats,
+  fetchTreeIdeas,
+  fetchUltimoEvento,
+} from '../lib/api'
 import { demoCategoryCounts, makeDemoHistory, makeDemoIdea } from '../lib/demo'
 import type { Idea, Stats } from '../lib/types'
 
@@ -59,6 +68,17 @@ export function useLiveTree(): LiveTree {
   const seenIdsRef = useRef<Set<string>>(new Set())
   const lastSeenAtRef = useRef<string>(new Date(0).toISOString())
   const milestoneReachedRef = useRef<Set<number>>(new Set())
+  /**
+   * Ideas que el equipo retiró.
+   *
+   * Hace falta porque el temporizador que planta la hoja al terminar el
+   * viaje ya capturó la idea en un closure y no se puede cancelar desde el
+   * handler de moderación. Sin esta lista, una idea retirada mientras su
+   * partícula subía por el tronco se plantaba igual al llegar.
+   */
+  const retiradasRef = useRef<Set<string>>(new Set())
+  /** Último evento de moderación procesado, para el respaldo por intervalos. */
+  const ultimoEventoRef = useRef(0)
   const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([])
 
   const clearTimers = () => {
@@ -106,8 +126,15 @@ export function useLiveTree(): LiveTree {
     const duration = queue.length > 2 ? ANIM_FAST_MS : ANIM_BASE_MS
 
     later(() => {
-      // La hoja queda integrada de forma permanente.
-      setIdeas((prev) => [...prev, next])
+      /*
+       * Última comprobación antes de plantar. El viaje de la partícula dura
+       * más de tres segundos: en ese lapso el equipo puede haber retirado la
+       * idea desde el panel. Sin esto la hoja se plantaba igual al llegar,
+       * porque el temporizador ya la tenía capturada.
+       */
+      if (!retiradasRef.current.has(next.id)) {
+        setIdeas((prev) => [...prev, next])
+      }
       setActiveIdea(null)
       animatingRef.current = false
       later(pump, 260)
@@ -142,6 +169,70 @@ export function useLiveTree(): LiveTree {
       pump()
     },
     [pump],
+  )
+
+  /**
+   * Aplica un evento de moderación a la pantalla.
+   *
+   * Vive acá y no dentro de la suscripción porque el ciclo de respaldo por
+   * intervalos tiene que poder ejecutar exactamente lo mismo: si el
+   * WebSocket se cae, retirar una idea desde el panel no llegaría nunca y
+   * el texto se quedaría proyectado en el LED.
+   */
+  const aplicarModeracion = useCallback(
+    (evt: { id?: number; idea_id: string; action: string }) => {
+      if (evt.id && evt.id > ultimoEventoRef.current) ultimoEventoRef.current = evt.id
+
+      if (evt.action === 'hidden') {
+        retiradasRef.current.add(evt.idea_id)
+        // Se saca de lo visto para que una republicación posterior no quede
+        // descartada por duplicada.
+        seenIdsRef.current.delete(evt.idea_id)
+
+        setIdeas((prev) => {
+          if (!prev.some((i) => i.id === evt.idea_id)) return prev
+          setStats((s) => ({ ...s, ideas: Math.max(0, s.ideas - 1) }))
+          return prev.filter((i) => i.id !== evt.idea_id)
+        })
+        queueRef.current = queueRef.current.filter((i) => i.id !== evt.idea_id)
+        setActiveIdea((curr) => (curr?.id === evt.idea_id ? null : curr))
+        return
+      }
+
+      if (evt.action === 'restored') {
+        /*
+         * El equipo aprobó algo de la cola de revisión.
+         *
+         * Antes esto no se atendía: la pantalla sólo escuchaba INSERT, y
+         * aprobar es un UPDATE, así que la cola de revisión era un pozo sin
+         * salida — lo que el filtro marcaba no llegaba nunca al árbol
+         * aunque alguien lo aprobara.
+         *
+         * El evento sólo trae el id, así que hay que ir a buscar el texto.
+         * Si RLS la sigue escondiendo, fetchIdeaById devuelve null y no se
+         * planta nada.
+         */
+        retiradasRef.current.delete(evt.idea_id)
+
+        void fetchIdeaById(evt.idea_id)
+          .then((idea) => {
+            if (idea) enqueue([idea])
+          })
+          .catch(() => undefined)
+        return
+      }
+
+      if (evt.action === 'archived_all') {
+        seenIdsRef.current.clear()
+        retiradasRef.current.clear()
+        queueRef.current = []
+        milestoneReachedRef.current.clear()
+        setIdeas([])
+        setActiveIdea(null)
+        setStats(EMPTY_STATS)
+      }
+    },
+    [enqueue],
   )
 
   // -------------------------------------------------------------------
@@ -208,6 +299,14 @@ export function useLiveTree(): LiveTree {
 
         if (metaActual) setGoal(metaActual)
 
+        // Marca de agua inicial: sin esto, el primer ciclo de respaldo
+        // reprocesaría todos los eventos de moderación de la expo entera.
+        void fetchUltimoEvento()
+          .then((id) => {
+            ultimoEventoRef.current = id
+          })
+          .catch(() => undefined)
+
         history.forEach((i) => {
           seenIdsRef.current.add(i.id)
           if (i.created_at > lastSeenAtRef.current) lastSeenAtRef.current = i.created_at
@@ -257,21 +356,8 @@ export function useLiveTree(): LiveTree {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'moderation_events' },
         (payload) => {
-          const evt = payload.new as { idea_id: string; action: string }
-          if (evt.action === 'hidden') {
-            // Retiro inmediato de la hoja moderada.
-            setIdeas((prev) => prev.filter((i) => i.id !== evt.idea_id))
-            queueRef.current = queueRef.current.filter((i) => i.id !== evt.idea_id)
-            setActiveIdea((curr) => (curr?.id === evt.idea_id ? null : curr))
-            setStats((prev) => ({ ...prev, ideas: Math.max(0, prev.ideas - 1) }))
-          } else if (evt.action === 'archived_all') {
-            seenIdsRef.current.clear()
-            queueRef.current = []
-            milestoneReachedRef.current.clear()
-            setIdeas([])
-            setActiveIdea(null)
-            setStats(EMPTY_STATS)
-          }
+          const evt = payload.new as { id: number; idea_id: string; action: string }
+          aplicarModeracion(evt)
         },
       )
       .subscribe((state) => {
@@ -288,7 +374,7 @@ export function useLiveTree(): LiveTree {
       cancelled = true
       void supabasePublic?.removeChannel(channel)
     }
-  }, [enqueue])
+  }, [enqueue, aplicarModeracion])
 
   // -------------------------------------------------------------------
   // Refresco periodico de estadisticas (corrige la deriva del optimista
@@ -316,16 +402,30 @@ export function useLiveTree(): LiveTree {
   useEffect(() => {
     if (!IS_SUPABASE_CONFIGURED || status === 'live' || status === 'demo') return
 
-    const interval = setInterval(() => {
+    /*
+     * Con el socket caído hay que traer las dos cosas: las ideas nuevas y
+     * los eventos de moderación. Traer sólo las nuevas dejaba una idea
+     * retirada proyectada en el LED hasta que volviera la conexión.
+     */
+    const traer = () => {
       fetchIdeasSince(lastSeenAtRef.current)
         .then((rows) => {
           if (rows.length > 0) enqueue(rows)
         })
         .catch(() => undefined)
-    }, BACKUP_POLL_MS)
+
+      fetchModeracionSince(ultimoEventoRef.current)
+        .then((eventos) => eventos.forEach(aplicarModeracion))
+        .catch(() => undefined)
+    }
+
+    // Sin espera inicial: los primeros ocho segundos tras una caída son
+    // justo los que importan.
+    traer()
+    const interval = setInterval(traer, BACKUP_POLL_MS)
 
     return () => clearInterval(interval)
-  }, [status, enqueue])
+  }, [status, enqueue, aplicarModeracion])
 
   // Limpieza de timers al desmontar.
   useEffect(() => clearTimers, [])
