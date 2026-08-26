@@ -233,7 +233,24 @@ export function useLiveTree(): LiveTree {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'ideas' },
         (payload) => {
-          enqueue([payload.new as Idea])
+          /*
+           * Se descartan los campos internos aunque el permiso de columna
+           * ya debería filtrarlos. El payload de replicación no pasa por
+           * el mismo camino que una consulta REST, y no quiero que la
+           * promesa de "en el stand sólo se publica la propuesta" dependa
+           * de un detalle de implementación de Realtime.
+           */
+          const fila = payload.new as Record<string, unknown>
+          enqueue([
+            {
+              id: fila.id as string,
+              text: fila.text as string,
+              category: fila.category as Idea['category'],
+              status: fila.status as Idea['status'],
+              archived_at: (fila.archived_at as string | null) ?? null,
+              created_at: fila.created_at as string,
+            },
+          ])
         },
       )
       .on(

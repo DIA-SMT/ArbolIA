@@ -118,7 +118,20 @@ async function main() {
     p_text: `Prueba de conexión ${marca} — se puede borrar`,
     p_category: 'tecnologia',
     p_device_id: dispositivo,
+    p_author_name: null,
+    p_age_range: '30-44',
   })
+
+  // Una sobrecarga sin resolver devuelve 300 y rompe todos los envíos.
+  if (ideaError?.code === 'PGRST203') {
+    check(
+      'la función de envío no está duplicada',
+      false,
+      'hay dos versiones de arbolia_submit_idea: correr 006-datos-internos.sql',
+    )
+    console.log('\n  Ejecutá esa migración en el SQL Editor y volvé a correr esto.\n')
+    process.exit(1)
+  }
 
   if (ideaError && ideaError.message.includes('arbolia_submit_idea')) {
     check('la función de envío existe', false, 'falta correr supabase/migrations/001-submit-idea.sql')
@@ -135,6 +148,8 @@ async function main() {
     p_text: 'Segundo envío inmediato del mismo dispositivo',
     p_category: 'tecnologia',
     p_device_id: dispositivo,
+    p_author_name: null,
+    p_age_range: null,
   })
 
   check(
@@ -150,6 +165,8 @@ async function main() {
     p_text: 'esta ciudad es una mierda',
     p_category: 'comunidad',
     p_device_id: `dev_filtro_${marca}`,
+    p_author_name: null,
+    p_age_range: '18-29',
   })
 
   const sucia = suciaRaw as { id: string; status: string } | null
@@ -228,6 +245,52 @@ async function main() {
     soloVisibles,
     soloVisibles ? 'doble red activa' : 'RLS deja pasar de más: el filtro del cliente es lo único que protege',
   )
+
+  /*
+   * --- Datos internos ----------------------------------------------
+   *
+   * La regla del proyecto: en el stand sólo se publica la propuesta. El
+   * nombre y el rango etario existen para el informe del municipio.
+   *
+   * Que la pantalla "no los muestre" no alcanza: la clave pública viaja al
+   * navegador de cada visitante, así que cualquiera puede consultar la API
+   * directamente. Lo que sostiene la promesa es el permiso a nivel de
+   * columna — RLS decide qué FILAS se ven, no qué columnas.
+   */
+  console.log('\nDATOS INTERNOS')
+
+  const { data: fila } = await db.from('ideas').select('*').limit(1)
+  const columnas = fila?.[0] ? Object.keys(fila[0]) : []
+
+  check(
+    'el nombre no es legible con la clave pública',
+    !columnas.includes('author_name'),
+    columnas.length ? `columnas públicas: ${columnas.join(', ')}` : '(sin ideas para comprobar)',
+  )
+  check('la edad no es legible con la clave pública', !columnas.includes('age_range'))
+  check('el identificador de dispositivo tampoco', !columnas.includes('device_id'))
+
+  // Pedirlos por nombre tiene que fallar, no devolver nulos.
+  const { error: dirigido } = await db.from('ideas').select('author_name, age_range').limit(1)
+  check(
+    'pedirlos explícitamente es rechazado',
+    Boolean(dirigido),
+    dirigido ? 'permiso denegado, como corresponde' : 'LA CONSULTA PASÓ: falta la migración 006',
+  )
+
+  // Pero los agregados sí funcionan: el municipio necesita el informe.
+  const { data: edades, error: edadesError } = await db.rpc('arbolia_por_edad')
+  if (edadesError) {
+    check('participación por edad', false, 'falta correr 006 o 005-autor.sql')
+  } else {
+    const rangos = (edades ?? []) as Array<{ label: string; total: number }>
+    const conDatos = rangos.filter((r) => r.total > 0)
+    check(
+      'el resumen por edad sí responde',
+      rangos.length === 6,
+      conDatos.map((r) => `${r.label}: ${r.total}`).join(' · ') || 'sin datos todavía',
+    )
+  }
 
   // --- Panel: ajustes y evolución -----------------------------------
   console.log('\nPANEL')

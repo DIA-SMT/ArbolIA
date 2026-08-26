@@ -2,6 +2,16 @@ import { requirePublic, requireSupabase, supabase } from './supabase'
 import { DEFAULT_CATEGORY } from './categories'
 import type { AgeRange, AgeStat, CategorySlug, Idea, IdeaStatus, Stats } from './types'
 
+/**
+ * Columnas que la pantalla puede leer.
+ *
+ * No incluye author_name, age_range ni device_id: en el stand sólo se
+ * publica la propuesta. El resto son datos internos para el informe del
+ * municipio, y desde la migración 006 el rol anónimo directamente no tiene
+ * permiso de leerlos — pedirlos acá haría fallar la consulta.
+ */
+const COLUMNAS_PUBLICAS = 'id, text, category, status, archived_at, created_at'
+
 /** Cuantas ideas carga la pantalla al arrancar para reconstruir el arbol. */
 export const TREE_HISTORY_LIMIT = 900
 
@@ -57,7 +67,7 @@ export async function fetchTreeIdeas(limit = TREE_HISTORY_LIMIT): Promise<Idea[]
   const db = requirePublic()
   const { data, error } = await db
     .from('ideas')
-    .select('id, text, category, device_id, status, archived_at, created_at')
+    .select(COLUMNAS_PUBLICAS)
     .eq('status', 'visible')
     .is('archived_at', null)
     .order('created_at', { ascending: false })
@@ -72,7 +82,7 @@ export async function fetchIdeasSince(isoTimestamp: string): Promise<Idea[]> {
   const db = requirePublic()
   const { data, error } = await db
     .from('ideas')
-    .select('id, text, category, device_id, status, archived_at, created_at')
+    .select(COLUMNAS_PUBLICAS)
     .eq('status', 'visible')
     .is('archived_at', null)
     .gt('created_at', isoTimestamp)
@@ -173,7 +183,9 @@ export async function fetchAdminIdeas(filters: AdminFilters = {}): Promise<Idea[
   const db = requireSupabase()
   let query = db
     .from('ideas')
-    .select('id, text, category, device_id, status, archived_at, created_at')
+    // El panel sí ve los datos internos: los necesita para moderar y para
+    // el informe posterior.
+    .select('id, text, category, device_id, status, archived_at, created_at, author_name, age_range')
     .order('created_at', { ascending: false })
     .limit(filters.limit ?? 300)
 

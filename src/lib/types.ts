@@ -36,7 +36,8 @@ export interface Idea {
   id: string
   text: string
   category: CategorySlug
-  device_id: string
+  /** Sólo lo ve el panel: no viaja al navegador del público. */
+  device_id?: string
   /** Opcional: quien no quiere firmar participa igual. */
   author_name?: string | null
   age_range?: AgeRange | null
