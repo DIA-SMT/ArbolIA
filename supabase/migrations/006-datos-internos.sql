@@ -82,30 +82,24 @@ grant select on public.ideas to authenticated;
 -- ---------------------------------------------------------------------
 do $check$
 declare
-  publicas text;
-  filtradas text;
+  internas text[] := array['author_name', 'age_range', 'device_id'];
+  col      text;
+  expuesta text;
 begin
-  select string_agg(column_name, ', ' order by ordinal_position)
-    into publicas
-  from information_schema.column_privileges
-  where table_schema = 'public' and table_name = 'ideas'
-    and grantee = 'anon' and privilege_type = 'SELECT';
+  -- has_column_privilege consulta el permiso directamente, sin depender de
+  -- la forma de las vistas del catálogo.
+  foreach col in array internas loop
+    if has_column_privilege('anon', 'public.ideas', col, 'SELECT') then
+      expuesta := coalesce(expuesta || ', ', '') || col;
+    end if;
+  end loop;
 
-  select string_agg(c.column_name, ', ' order by c.ordinal_position)
-    into filtradas
-  from information_schema.columns c
-  where c.table_schema = 'public' and c.table_name = 'ideas'
-    and c.column_name not in (
-      select column_name from information_schema.column_privileges
-      where table_schema = 'public' and table_name = 'ideas'
-        and grantee = 'anon' and privilege_type = 'SELECT'
-    );
-
-  raise notice 'Columnas públicas: %', coalesce(publicas, '(ninguna)');
-  raise notice 'Columnas internas: %', coalesce(filtradas, '(ninguna)');
-
-  if filtradas is null or filtradas not like '%author_name%' then
-    raise exception 'author_name quedó accesible al público: revisar los grants';
+  if expuesta is not null then
+    raise exception
+      'Estas columnas siguen siendo legibles por el público: %. Los grants no se aplicaron.',
+      expuesta;
   end if;
+
+  raise notice 'OK: nombre, edad e identificador de dispositivo quedaron fuera del alcance público.';
 end;
 $check$;
