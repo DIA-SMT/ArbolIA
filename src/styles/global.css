@@ -1,0 +1,158 @@
+/* =====================================================================
+   ARBOLIA — sistema visual
+   Institucional pero moderno: fondo profundo, luz volumétrica, acentos
+   que vienen de las categorías. Sin cromo de dashboard.
+   ===================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------
+     Identidad Municipalidad de San Miguel de Tucumán.
+     Hex de marca, sin alterar.
+     --------------------------------------------------------------- */
+  --smt-azul: #126ff5;
+  --smt-azul-medio: #2589ea;
+  --smt-azul-profundo: #28469f;
+  --smt-azul-oscuro: #0d3fb0;
+  --smt-celeste: #3cb4f0;
+  --smt-amarillo: #f2d91c;
+  --smt-verde: #10b981;
+  --smt-verde-claro: #25d366;
+
+  /* ---------------------------------------------------------------
+     Traducción a soporte oscuro.
+
+     La paleta institucional está definida para papel: tinta #10233d,
+     texto #33414f y líneas #e3e8ef son colores sobre blanco. Acá el
+     soporte es una pantalla LED en un pabellón a oscuras, así que los
+     roles de valor se invierten. Los hex de marca —azul, celeste,
+     amarillo, verde— se respetan tal cual; lo que se deriva son los
+     grises de texto y los fondos.
+     --------------------------------------------------------------- */
+
+  /* Fondo: negro con la temperatura del azul institucional. El negro
+     puro aplana el bloom y en LED grande se ve muerto. */
+  --bg-void: #050a12;
+  --bg-deep: #08101c;
+  --bg-panel: rgba(10, 20, 34, 0.3);
+  --bg-panel-solid: #0a1524;
+
+  --line-soft: rgba(60, 180, 240, 0.1);
+  --line-mid: rgba(60, 180, 240, 0.24);
+
+  --text-hi: #eef5fc;
+  --text-mid: rgba(214, 231, 245, 0.72);
+  --text-low: rgba(184, 208, 230, 0.46);
+
+  /* Verde institucional como acento principal: está entre los acentos
+     permitidos y es el que corresponde a un árbol que crece. */
+  --accent: var(--smt-verde-claro);
+  --accent-warm: var(--smt-verde);
+  --accent-gold: var(--smt-amarillo);
+  --accent-blue: var(--smt-celeste);
+  --accent-glow: rgba(37, 211, 102, 0.5);
+
+  --ok: var(--smt-verde);
+  --warn: #f5b81c;
+  --danger: #ef4444;
+
+  --font-display: 'Sora', system-ui, -apple-system, sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-void);
+  color: var(--text-hi);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* La ruta móvil sí necesita scroll natural. */
+body[data-route='mobile'] {
+  overflow: auto;
+  overscroll-behavior-y: contain;
+}
+
+body[data-route='admin'] {
+  overflow: auto;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+::selection {
+  background: var(--accent-glow);
+  color: #04070c;
+}
+
+/* Scrollbar sobrio para el panel admin. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 190, 220, 0.18);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 190, 220, 0.32);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

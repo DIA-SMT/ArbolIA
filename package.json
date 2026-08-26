@@ -1,0 +1,42 @@
+{
+  "name": "arbolia",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Arbol Virtual de Ideas - La Ciudad Te Escucha | ExpoCom Tucuman 2026",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "check:tree": "esbuild scripts/check-tree.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-tree.mjs --log-level=error && node node_modules/.cache/check-tree.mjs",
+    "check:labels": "esbuild scripts/check-labels.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-labels.mjs --log-level=error && node node_modules/.cache/check-labels.mjs",
+    "check": "npm run check:tree && npm run check:labels && npm run check:layout && npm run check:filtro",
+    "check:supabase": "esbuild scripts/check-supabase.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-supabase.mjs --log-level=error && node node_modules/.cache/check-supabase.mjs",
+    "check:layout": "esbuild scripts/check-layout.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-layout.mjs --log-level=error && node node_modules/.cache/check-layout.mjs",
+    "check:filtro": "esbuild scripts/check-filtro.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-filtro.mjs --log-level=error && node node_modules/.cache/check-filtro.mjs"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
+    "@react-three/postprocessing": "^3.1.0",
+    "@supabase/supabase-js": "^2.112.4",
+    "framer-motion": "^13.1.1",
+    "postprocessing": "^6.39.4",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@types/three": "^0.185.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  }
+}

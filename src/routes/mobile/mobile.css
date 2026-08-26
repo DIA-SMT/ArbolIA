@@ -1,0 +1,433 @@
+/* =====================================================================
+   Web móvil — la que se abre desde el QR.
+   Debe entrar completa en una pantalla de celular sin scroll en el caso
+   normal, y funcionar con una mano mientras la persona está parada.
+   ===================================================================== */
+
+.mob {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: max(1.4rem, env(safe-area-inset-top)) 1.25rem
+    max(1.4rem, env(safe-area-inset-bottom));
+  background: radial-gradient(circle at 50% -12%, #0d2030 0%, #05090f 58%);
+  overflow-x: hidden;
+}
+
+/* Halo del color del área elegida: la elección se siente en toda la pantalla. */
+.mob__glow {
+  position: fixed;
+  top: -32vh;
+  left: 50%;
+  width: 130vw;
+  height: 62vh;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--pick) 26%, transparent) 0%,
+    transparent 68%
+  );
+  pointer-events: none;
+  transition: background 600ms var(--ease-out);
+  z-index: 0;
+}
+
+.mob__head,
+.mob__stage {
+  position: relative;
+  z-index: 1;
+}
+
+/* Las fases comparten celda: entran y salen sin empujar el layout. */
+.mob__stage {
+  flex: 1;
+  display: grid;
+  grid-template-areas: 'stage';
+}
+
+.panel {
+  grid-area: stage;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+  opacity: 0;
+  transform: translateY(14px);
+  /* visibility evita que la fase inactiva reciba foco o toques. */
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 380ms var(--ease-out), transform 380ms var(--ease-out),
+    visibility 0s linear 380ms;
+}
+
+.panel[data-active='true'] {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 420ms var(--ease-out) 90ms,
+    transform 420ms var(--ease-out) 90ms, visibility 0s;
+}
+
+.panel--center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1rem;
+}
+
+/* ------------------------------------------------------------ Encabezado */
+
+.mob__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.6rem;
+}
+
+.mob__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.mob__brand-dot {
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: var(--pick);
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--pick) 60%, transparent);
+  transition: background 400ms ease;
+}
+
+.mob__kicker {
+  margin: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(190, 215, 235, 0.35);
+}
+
+/* ----------------------------------------------------------------- Cuerpo */
+
+.mob__title {
+  font-size: clamp(1.65rem, 8vw, 2.3rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.mob__title span {
+  background: linear-gradient(120deg, var(--pick), #6ee7a0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition: background 500ms ease;
+}
+
+.mob__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+/* ----------------------------------------------------------- Campo texto */
+
+.field {
+  position: relative;
+}
+
+.field__input {
+  width: 100%;
+  padding: 1rem 3.1rem 1rem 1rem;
+  border-radius: 16px;
+  border: 1px solid var(--line-mid);
+  background: rgba(10, 20, 32, 0.72);
+  /* 16px reales: menos que eso y iOS hace zoom al enfocar. */
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--text-hi);
+  resize: none;
+  transition: border-color 240ms ease, box-shadow 240ms ease;
+  -webkit-appearance: none;
+}
+
+.field__input::placeholder {
+  color: rgba(190, 215, 235, 0.34);
+}
+
+.field__input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--pick) 62%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pick) 14%, transparent);
+}
+
+.field__input:disabled {
+  opacity: 0.6;
+}
+
+.field__count {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.7rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-low);
+  pointer-events: none;
+}
+
+.field__count--low {
+  color: var(--warn);
+}
+
+.mob__error {
+  margin: -0.4rem 0 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.09);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: #fecdd3;
+}
+
+/* ------------------------------------------------------------ Categorías */
+
+.cats__label {
+  margin: 0 0 0.6rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.cats__label span {
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  opacity: 0.7;
+}
+
+.cats__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.65rem 0.7rem;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 20, 32, 0.6);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-mid);
+  text-align: left;
+  /* Área de toque cómoda de pie y con una sola mano. */
+  min-height: 46px;
+  transition: all 200ms var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip__emoji {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+.chip--on {
+  border-color: color-mix(in srgb, var(--chip) 66%, transparent);
+  background: color-mix(in srgb, var(--chip) 14%, rgba(10, 20, 32, 0.6));
+  color: var(--text-hi);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--chip) 22%, transparent);
+}
+
+.chip:active {
+  transform: scale(0.97);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------- Enviar */
+
+.send {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  width: 100%;
+  min-height: 56px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(120deg, var(--pick) 0%, #25d366 100%);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #04121a;
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--pick) 28%, transparent);
+  transition: transform 180ms var(--ease-out), opacity 200ms ease,
+    box-shadow 300ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.send:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.send:disabled {
+  opacity: 0.34;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.send__spin {
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  border: 2px solid rgba(4, 18, 26, 0.3);
+  border-top-color: #04121a;
+  animation: send-spin 700ms linear infinite;
+}
+
+@keyframes send-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mob__privacy {
+  margin: 0;
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-low);
+}
+
+/* ----------------------------------------------------------- Confirmación */
+
+.leafmark {
+  width: min(46vw, 180px);
+  height: min(46vw, 180px);
+  filter: drop-shadow(0 0 34px color-mix(in srgb, var(--pick) 45%, transparent));
+  transform: scale(0) rotate(-22deg);
+}
+
+/* La hoja brota recién cuando su panel se vuelve activo. */
+.panel[data-active='true'] .leafmark {
+  animation: leaf-sprout 900ms var(--ease-out) 180ms forwards;
+}
+
+@keyframes leaf-sprout {
+  0% {
+    transform: scale(0) rotate(-22deg);
+    opacity: 0;
+  }
+  62% {
+    transform: scale(1.09) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.review__mark {
+  font-size: 3.4rem;
+  line-height: 1;
+}
+
+.done__title {
+  font-size: clamp(1.5rem, 7vw, 2.05rem);
+  font-weight: 800;
+  line-height: 1.14;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.done__position {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-mid);
+}
+
+.done__position strong {
+  font-family: var(--font-display);
+  font-size: 1.35em;
+  font-weight: 800;
+  color: var(--pick);
+}
+
+.done__hint {
+  margin: 0;
+  max-width: 26ch;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text-mid);
+}
+
+.done__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.4em 0.95em;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--chip) 46%, transparent);
+  background: color-mix(in srgb, var(--chip) 12%, transparent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--chip);
+}
+
+.again {
+  margin-top: 0.6rem;
+  padding: 0.85rem 1.6rem;
+  border-radius: 12px;
+  border: 1px solid var(--line-mid);
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-mid);
+  min-height: 48px;
+  transition: all 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.again:active {
+  transform: scale(0.98);
+  border-color: var(--pick);
+  color: var(--text-hi);
+}
+
+/* Pantallas chicas: el grid de áreas pasa a una columna más compacta. */
+@media (max-height: 700px) {
+  .mob__head {
+    margin-bottom: 1rem;
+  }
+  .mob__body {
+    gap: 1rem;
+  }
+  .chip {
+    min-height: 42px;
+    padding: 0.55rem 0.6rem;
+    font-size: 0.78rem;
+  }
+}

@@ -1,0 +1,856 @@
+/* =====================================================================
+   Panel de moderación.
+   Acá sí manda la claridad: se opera de pie, en un stand, con gente
+   esperando. Misma paleta que la instalación, cero espectáculo.
+   ===================================================================== */
+
+.adm {
+  min-height: 100vh;
+  padding: 1.6rem clamp(1rem, 3vw, 2.6rem) 3rem;
+  background: radial-gradient(circle at 50% -20%, #0c1a28 0%, #05090f 55%);
+  font-size: 0.94rem;
+}
+
+.adm--empty,
+.adm--login {
+  display: grid;
+  place-items: center;
+  color: var(--text-mid);
+}
+
+/* ---------------------------------------------------------------- Login */
+
+.login {
+  width: min(380px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 2rem 1.8rem;
+  border-radius: 18px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 20, 32, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.login__kicker {
+  margin: 0;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent-warm);
+}
+
+.login__title {
+  font-size: 1.5rem;
+}
+
+.login__sub {
+  margin: -0.4rem 0 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-low);
+}
+
+.login__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.login__field span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.login__field input {
+  padding: 0.72rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-mid);
+  background: rgba(6, 12, 20, 0.8);
+  font-size: 1rem;
+}
+
+.login__field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login__error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #fecdd3;
+}
+
+.login__btn {
+  margin-top: 0.5rem;
+  padding: 0.85rem;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(120deg, var(--accent), var(--accent-warm));
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #04121a;
+}
+
+.login__btn:disabled {
+  opacity: 0.5;
+}
+
+/* ----------------------------------------------------------------- Barra */
+
+.adm__bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.6rem;
+}
+
+.adm__kicker {
+  margin: 0 0 0.25rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.adm__title {
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+}
+
+.adm__bar-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.adm__alert {
+  margin: 0 0 1rem;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.09);
+  color: #fecdd3;
+  font-size: 0.86rem;
+}
+
+/* --------------------------------------------------------------- Botones */
+
+.btn {
+  padding: 0.5rem 0.9rem;
+  border-radius: 9px;
+  border: 1px solid var(--line-mid);
+  background: rgba(12, 24, 38, 0.7);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-mid);
+  transition: all 160ms ease;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text-hi);
+}
+
+.btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.btn--ok:hover:not(:disabled) {
+  border-color: var(--ok);
+  color: #a7e8c4;
+}
+
+.btn--danger {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fecdd3;
+}
+
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fff1f2;
+}
+
+/* -------------------------------------------------------------- Métricas */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1.4rem;
+}
+
+.card {
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 20, 32, 0.6);
+}
+
+.card--accent {
+  border-color: rgba(37, 211, 102, 0.28);
+  background: rgba(14, 36, 44, 0.6);
+}
+
+.card--warn {
+  border-color: rgba(242, 217, 28, 0.34);
+  background: rgba(44, 34, 10, 0.44);
+}
+
+.card__label {
+  margin: 0 0 0.3rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.card__value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.card--warn .card__value {
+  color: var(--warn);
+}
+
+/* ---------------------------------------------------------------- Grilla */
+
+.adm__grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(260px, 320px);
+  gap: 1.2rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .adm__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --------------------------------------------------------------- Filtros */
+
+.filters {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.filters__search {
+  flex: 1;
+  min-width: 190px;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-mid);
+  background: rgba(6, 12, 20, 0.72);
+  font-size: 0.9rem;
+}
+
+.filters__select {
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-mid);
+  background: rgba(6, 12, 20, 0.72);
+  font-size: 0.86rem;
+}
+
+.filters__search:focus,
+.filters__select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* -------------------------------------------------------------- Listado */
+
+.list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.list__empty {
+  padding: 2.4rem 1rem;
+  text-align: center;
+  color: var(--text-low);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--row);
+  background: rgba(10, 20, 32, 0.56);
+}
+
+.row--flagged {
+  border-color: rgba(242, 217, 28, 0.34);
+  border-left-color: var(--warn);
+  background: rgba(38, 30, 10, 0.42);
+}
+
+.row--hidden {
+  opacity: 0.52;
+}
+
+.row__main {
+  min-width: 0;
+}
+
+.row__text {
+  margin: 0 0 0.4rem;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  color: var(--text-hi);
+  overflow-wrap: anywhere;
+}
+
+.row__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  color: var(--text-low);
+}
+
+.row__cat {
+  color: var(--row);
+  font-weight: 600;
+}
+
+.row__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex: none;
+}
+
+.pill {
+  padding: 0.14em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--line-mid);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.pill--visible {
+  border-color: rgba(74, 222, 128, 0.34);
+  color: #a7e8c4;
+}
+
+.pill--flagged {
+  border-color: rgba(242, 217, 28, 0.42);
+  color: #f7e98a;
+}
+
+.pill--hidden {
+  border-color: rgba(239, 68, 68, 0.34);
+  color: #fecdd3;
+}
+
+/* -------------------------------------------------------------- Lateral */
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 1.6rem;
+}
+
+.side__box {
+  padding: 1.1rem 1.2rem;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 20, 32, 0.6);
+}
+
+.side__box--danger {
+  border-color: rgba(239, 68, 68, 0.24);
+}
+
+.side__title {
+  margin-bottom: 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.side__note {
+  margin: 0 0 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-low);
+}
+
+/* --------------------------------------------------------------- Reinicio */
+
+.reset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.reset__ask {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-mid);
+}
+
+.reset__ask strong {
+  color: var(--danger);
+  letter-spacing: 0.08em;
+}
+
+.reset__input {
+  padding: 0.6rem 0.8rem;
+  border-radius: 9px;
+  border: 1px solid rgba(239, 68, 68, 0.34);
+  background: rgba(6, 12, 20, 0.8);
+  font-size: 0.92rem;
+  letter-spacing: 0.1em;
+}
+
+.reset__input:focus {
+  outline: none;
+  border-color: var(--danger);
+}
+
+.reset__result {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--accent-warm);
+}
+
+.reset__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* =====================================================================
+   Gráfico de evolución
+   ===================================================================== */
+
+.tl {
+  padding: 1.1rem 1.2rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  /* Superficie exacta contra la que se validó la paleta del gráfico. */
+  background: #0c1826;
+  margin-bottom: 1.2rem;
+}
+
+.tl__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.tl__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+.tl__sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-low);
+}
+
+/* Los filtros van en una fila sobre el gráfico. */
+.tl__rangos {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.tl__rango {
+  padding: 0.28rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-low);
+  transition: all 160ms ease;
+}
+
+.tl__rango:hover {
+  border-color: var(--line-mid);
+  color: var(--text-hi);
+}
+
+.tl__rango--on {
+  border-color: rgba(37, 211, 102, 0.45);
+  background: rgba(37, 211, 102, 0.1);
+  color: #a7e8c4;
+}
+
+/* ------------------------------------------------------------ Leyenda */
+
+/*
+ * Siempre presente con dos series. La identidad no puede depender sólo del
+ * color: el chip de "para revisión" repite la misma textura que la barra.
+ */
+.tl__leyenda {
+  display: flex;
+  gap: 1.1rem;
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  font-size: 0.74rem;
+  color: var(--text-mid);
+}
+
+.tl__leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.tl__chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.tl__chip--rayas {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 2px,
+    #0c1826 2px 3.4px
+  );
+}
+
+/* ------------------------------------------------------------- Trazado */
+
+.tl__plot {
+  position: relative;
+}
+
+.tl__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.tl__tick {
+  fill: rgba(184, 208, 230, 0.5);
+  font-size: 10px;
+  font-family: var(--font-ui);
+}
+
+/* ------------------------------------------------------------- Tooltip */
+
+.tl__tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 9px;
+  border: 1px solid var(--line-mid);
+  background: rgba(6, 14, 24, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--text-mid);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.tl__tip strong {
+  color: var(--text-hi);
+  font-size: 0.76rem;
+}
+
+.tl__tip-warn {
+  color: #e8b464;
+}
+
+.tl__tip-muted {
+  color: var(--text-low);
+}
+
+/* --------------------------------------------------------- Vista tabla */
+
+.tl__tabla-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.tl__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.tl__tabla th {
+  position: sticky;
+  top: 0;
+  background: #0c1826;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-low);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tl__tabla td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid rgba(60, 180, 240, 0.06);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-mid);
+}
+
+.tl__tabla td:first-child {
+  color: var(--text-hi);
+}
+
+.tl__vacio {
+  margin: 0;
+  padding: 1.6rem 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-low);
+}
+
+.tl__vacio--sobre {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* =====================================================================
+   Meta editable
+   ===================================================================== */
+
+.meta__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.meta__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 9px;
+  border: 1px solid var(--line-mid);
+  background: rgba(6, 12, 20, 0.8);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.meta__hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--text-low);
+}
+
+.meta__ok {
+  color: var(--accent);
+}
+
+/* =====================================================================
+   Participación por área — anillo + lista
+
+   El anillo y la lista son una sola pieza. Con ocho porciones el círculo
+   solo no alcanza para comparar dos áreas parecidas; el número al lado es
+   lo que lo vuelve legible.
+   ===================================================================== */
+
+.donut {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+}
+
+.donut--vacio {
+  justify-content: center;
+  padding: 1.6rem 0;
+  color: var(--text-low);
+  font-size: 0.84rem;
+}
+
+.donut__anillo {
+  flex: none;
+  width: 170px;
+}
+
+.donut__anillo svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.donut__anillo path {
+  cursor: default;
+}
+
+.donut__num {
+  fill: var(--text-hi);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.donut__cap {
+  fill: rgba(184, 208, 230, 0.55);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.donut__lista {
+  flex: 1;
+  min-width: 200px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.donut__fila {
+  display: grid;
+  grid-template-columns: 9px 1.2em 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-mid);
+  transition: background 160ms ease;
+}
+
+.donut__fila--on {
+  background: rgba(60, 180, 240, 0.08);
+  color: var(--text-hi);
+}
+
+.donut__punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.donut__emoji {
+  font-size: 0.95em;
+  line-height: 1;
+}
+
+.donut__area {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.donut__pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-low);
+  min-width: 3ch;
+  text-align: right;
+}
+
+.donut__total {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-hi);
+  min-width: 2.5ch;
+  text-align: right;
+}
+
+/* =====================================================================
+   Identidad institucional
+
+   Dos elementos que el manual de marca usa en todas las piezas impresas y
+   que faltaban acá: el filete amarillo/celeste bajo la banda superior, y
+   la barrita vertical a la izquierda de cada título de sección.
+   ===================================================================== */
+
+.adm__bar {
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+/* Filete de marca: 22 % amarillo, el resto celeste. */
+.adm__bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--smt-amarillo) 0 22%,
+    var(--smt-celeste) 22% 100%
+  );
+}
+
+/* Barrita vertical azul-celeste en los títulos de sección. */
+.side__title,
+.tl__title {
+  position: relative;
+  padding-left: 0.7rem;
+}
+
+.side__title::before,
+.tl__title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  bottom: 0.1em;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--smt-azul), var(--smt-celeste));
+}

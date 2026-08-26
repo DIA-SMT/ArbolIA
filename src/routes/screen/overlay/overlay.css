@@ -1,0 +1,887 @@
+/* =====================================================================
+   Overlay de la pantalla principal.
+
+   ESCALA
+   Todos los tamaños salen de --u, una unidad atada al viewport. Antes cada
+   medida tenía su propio clamp() con tope en valores de 1080p: en un LED 4K
+   el título medía los mismos 50 px que en una notebook, o sea la mitad del
+   tamaño relativo, y de lejos no se leía. Con una sola unidad, toda la
+   pantalla escala junta y hay un único número que calibrar el día del
+   armado si el LED del stand pide más o menos cuerpo.
+   ===================================================================== */
+
+:root {
+  /* El min() con vh sólo entra en juego en pantallas ultra-anchas, donde
+     sobra ancho pero no alto: sin él la columna izquierda llegaba al 90 %
+     de la altura y quedaba a un renglón de desbordar. */
+  --u: clamp(11px, min(0.9vw, 2vh), 34px);
+}
+
+/* En un tótem vertical el ancho es el lado corto: manda el alto. */
+@media (max-aspect-ratio: 1/1) {
+  :root {
+    --u: clamp(12px, 1.5vh, 34px);
+  }
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  /* El canvas 3D queda debajo y sigue recibiendo el mouse para depurar. */
+  pointer-events: none;
+  display: grid;
+  /*
+   * Columnas angostas a propósito. El protagonista es el árbol: los datos
+   * acompañan desde el margen y no deben disputarle el centro.
+   */
+  grid-template-columns: minmax(290px, 22vw) 1fr minmax(205px, 15vw);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'top  top    top'
+    'left center right';
+  padding: 2.4vh 1.8vw 2.4vh;
+  gap: 1.2vh 2vw;
+}
+
+/* ---------------------------------------------------------------- Top */
+
+.overlay__top {
+  grid-area: top;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2vw;
+  padding-bottom: 1.1vh;
+  margin-bottom: 1.4vh;
+}
+
+/*
+ * Filete de marca: 22 % amarillo y el resto celeste.
+ *
+ * Es el remate que el manual usa bajo la banda azul en todas las piezas
+ * impresas del municipio. Trasladarlo acá hace que la instalación y un PDF
+ * institucional se lean como del mismo lugar, que es de lo poco que ata una
+ * pantalla de expo con el resto de la comunicación oficial.
+ */
+.overlay__top::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--smt-amarillo) 0 22%,
+    var(--smt-celeste) 22% 100%
+  );
+  opacity: 0.75;
+}
+
+/* Logo institucional, en su versión blanca para fondo oscuro. */
+.overlay__logo {
+  height: clamp(30px, 3.4vh, 58px);
+  width: auto;
+  object-fit: contain;
+  flex: none;
+}
+
+.overlay__event {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.2vw;
+  color: var(--text-low);
+}
+
+.overlay__event-name {
+  font-size: calc(var(--u) * 0.88);
+  font-weight: 600;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Filetes que enmarcan el nombre del evento, como en la papelería. */
+.overlay__rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-mid), transparent);
+}
+
+/* Pastilla clara para el logo de la Dirección de IA. */
+.overlay__ia {
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0.5vh 0.9vw;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.overlay__ia img {
+  height: clamp(20px, 2.4vh, 40px);
+  width: auto;
+  display: block;
+}
+
+/* ------------------------------------------------------------ Pregunta */
+
+/*
+ * Sin tarjeta: es el titular de la instalación, no un dato más. El fondo
+ * de vidrio le sacaría jerarquía y lo pondría al nivel de los contadores.
+ */
+.ask {
+  margin-bottom: 0.6vh;
+}
+
+.ask__title {
+  font-size: calc(var(--u) * 2.78);
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -0.028em;
+  color: var(--text-hi);
+  text-wrap: balance;
+}
+
+.ask__title span {
+  display: block;
+  background: linear-gradient(115deg, var(--smt-verde-claro) 0%, var(--smt-celeste) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ask__phrase {
+  margin: 0.7em 0 0;
+  font-size: calc(var(--u) * 1.05);
+  line-height: 1.4;
+  color: var(--text-mid);
+  animation: phrase-in 900ms var(--ease-out);
+}
+
+@keyframes phrase-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/* ------------------------------------------------------------ Laterales */
+
+.overlay__left {
+  grid-area: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85vh;
+  align-self: center;
+}
+
+.overlay__right {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85vh;
+  align-self: center;
+}
+
+/*
+ * Tarjeta base.
+ *
+ * Casi sin caja: fondo apenas insinuado y borde al límite de lo visible.
+ * Una tarjeta con peso propio compite con el árbol y convierte la
+ * instalación en un tablero de control. Lo que tiene que leerse desde lejos
+ * es el número, no el recuadro que lo contiene.
+ */
+.panel,
+.goal,
+.areas,
+.recent {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid rgba(60, 180, 240, 0.07);
+  background: linear-gradient(
+    160deg,
+    rgba(10, 20, 34, 0.3) 0%,
+    rgba(6, 12, 22, 0.16) 100%
+  );
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  padding: 0.95vh 0.95vw;
+  overflow: hidden;
+  /* Necesario para el hover: el contenedor .overlay no recibe puntero. */
+  pointer-events: auto;
+  transition: border-color 420ms var(--ease-out), background 420ms var(--ease-out),
+    transform 420ms var(--ease-out);
+}
+
+/* Hairline superior: da el acabado de instrumento, no de caja. */
+.panel::before,
+.goal::before,
+.areas::before,
+.recent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-soft), transparent);
+  transition: background 420ms var(--ease-out);
+  z-index: 1;
+}
+
+/*
+ * Reflejo al pasar el mouse.
+ *
+ * Una banda de luz cruza la tarjeta en diagonal, como el brillo que recorre
+ * un cristal al moverse. Se mueve por transform, así que va por compositor y
+ * no cuesta nada aunque la escena 3D esté a pleno.
+ */
+.panel::after,
+.goal::after,
+.areas::after,
+.recent::after {
+  content: '';
+  position: absolute;
+  inset: -30% -10%;
+  background: linear-gradient(
+    104deg,
+    transparent 38%,
+    rgba(190, 235, 255, 0.07) 45%,
+    rgba(220, 250, 255, 0.16) 50%,
+    rgba(190, 235, 255, 0.07) 55%,
+    transparent 62%
+  );
+  transform: translateX(-115%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.panel:hover,
+.goal:hover,
+.areas:hover,
+.recent:hover {
+  border-color: rgba(60, 180, 240, 0.24);
+  background: linear-gradient(
+    160deg,
+    rgba(14, 28, 44, 0.44) 0%,
+    rgba(8, 16, 28, 0.26) 100%
+  );
+  transform: translateY(-2px);
+}
+
+.panel:hover::before,
+.goal:hover::before,
+.areas:hover::before,
+.recent:hover::before {
+  background: linear-gradient(90deg, transparent, var(--accent-warm), transparent);
+}
+
+.panel:hover::after,
+.goal:hover::after,
+.areas:hover::after,
+.recent:hover::after {
+  animation: card-sheen 1.05s var(--ease-out);
+}
+
+@keyframes card-sheen {
+  from {
+    transform: translateX(-115%);
+  }
+  to {
+    transform: translateX(115%);
+  }
+}
+
+.panel__label,
+.goal__title,
+.areas__title,
+.recent__title {
+  margin: 0 0 0.35em;
+  font-size: calc(var(--u) * 0.76);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.panel__value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: calc(var(--u) * 2.55);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--text-hi);
+}
+
+/* La métrica principal: ideas recibidas. */
+.panel--hero {
+  border-color: rgba(37, 211, 102, 0.2);
+  background: linear-gradient(
+    160deg,
+    rgba(16, 42, 50, 0.34) 0%,
+    rgba(8, 20, 28, 0.18) 100%
+  );
+}
+
+.panel--hero .panel__label {
+  color: rgba(134, 231, 175, 0.8);
+}
+
+.panel__value--hero {
+  font-size: calc(var(--u) * 3.88);
+  font-weight: 800;
+  text-shadow: 0 0 44px rgba(37, 211, 102, 0.35);
+}
+
+/* ---------------------------------------------------------------- Meta */
+
+.goal__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.goal__stage {
+  font-size: calc(var(--u) * 0.73);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-warm);
+  padding: 0.18em 0.6em;
+  border: 1px solid rgba(37, 211, 102, 0.3);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.goal__count {
+  margin: 0.2em 0 0.5em;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+
+.goal__now {
+  font-size: calc(var(--u) * 2.05);
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+.goal__of {
+  font-size: calc(var(--u) * 1.11);
+  font-weight: 400;
+  color: var(--text-low);
+}
+
+.goal__track {
+  position: relative;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(60, 180, 240, 0.12);
+  overflow: hidden;
+}
+
+.goal__fill {
+  position: relative;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3cb4f0 0%, #25d366 58%, #6ee7a0 100%);
+  box-shadow: 0 0 18px rgba(37, 211, 102, 0.55);
+  /* Transición larga: la barra avanza a la vista, no salta. */
+  transition: width 1.4s var(--ease-out);
+}
+
+/* Destello que recorre la barra: comunica progreso vivo. */
+.goal__spark {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: goal-spark 3.2s ease-in-out infinite;
+}
+
+@keyframes goal-spark {
+  0%,
+  62% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.goal__pct {
+  margin: 0.5em 0 0;
+  font-size: calc(var(--u) * 0.78);
+  letter-spacing: 0.1em;
+  color: var(--text-low);
+}
+
+/* --------------------------------------------------------------- Áreas */
+
+.areas__list,
+.recent__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.areas__item {
+  display: grid;
+  grid-template-columns: 1.4em 1fr 3.2vw auto;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0;
+  font-size: calc(var(--u) * 0.87);
+}
+
+.areas__emoji {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+.areas__label {
+  color: var(--text-mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.areas__bar {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(60, 180, 240, 0.1);
+  overflow: hidden;
+}
+
+.areas__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 1s var(--ease-out);
+}
+
+.areas__total {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-hi);
+  min-width: 2.2ch;
+  text-align: right;
+}
+
+/* -------------------------------------------------------- Últimas ideas */
+
+.recent__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+  padding: 0.34em 0;
+  font-size: calc(var(--u) * 0.83);
+  line-height: 1.35;
+  color: var(--text-mid);
+  border-top: 1px solid rgba(60, 180, 240, 0.07);
+  animation: recent-in 700ms var(--ease-out);
+}
+
+.recent__item:first-child {
+  border-top: none;
+}
+
+.recent__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 0.42em;
+  border-radius: 50%;
+}
+
+.recent__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@keyframes recent-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ----------------------------------------------------------- Pie / QR */
+
+/* Pie sin uso mientras el QR esta fuera. Se repone junto con <QRPanel />. */
+.overlay__bottom {
+  display: none;
+}
+
+.qr {
+  display: flex;
+  align-items: center;
+  gap: 1.2vw;
+  padding: 1.1vh 1.6vw 1.1vh 1.1vh;
+  border-radius: 18px;
+  border: 1px solid var(--line-mid);
+  background: linear-gradient(
+    150deg,
+    rgba(16, 30, 48, 0.72) 0%,
+    rgba(8, 16, 28, 0.56) 100%
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  /* Respiración lenta: llama la atención sin parpadear. */
+  animation: qr-breathe 4.5s ease-in-out infinite;
+}
+
+@keyframes qr-breathe {
+  0%,
+  100% {
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(60, 180, 240, 0);
+  }
+  50% {
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5), 0 0 42px 2px rgba(60, 180, 240, 0.22);
+  }
+}
+
+.qr__card {
+  flex: none;
+  width: clamp(96px, 9.2vh, 168px);
+  height: clamp(96px, 9.2vh, 168px);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 6px;
+  display: grid;
+  place-items: center;
+}
+
+.qr__img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.qr__fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  background: repeating-conic-gradient(#050a12 0% 25%, #ffffff 0% 50%) 50% / 12px 12px;
+  opacity: 0.35;
+}
+
+.qr__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.qr__cta {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: calc(var(--u) * 1.9);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text-hi);
+}
+
+.qr__url {
+  margin: 0;
+  font-size: calc(var(--u) * 0.83);
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--accent);
+}
+
+/* -------------------------------------------------------- Celebración */
+
+.celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+    circle at 50% 46%,
+    rgba(8, 30, 40, 0.42) 0%,
+    rgba(4, 7, 12, 0.82) 72%
+  );
+}
+
+.celebration__card {
+  max-width: min(62vw, 1100px);
+  padding: 4vh 4vw;
+  text-align: center;
+  border-radius: 24px;
+  border: 1px solid rgba(37, 211, 102, 0.34);
+  background: linear-gradient(
+    160deg,
+    rgba(12, 32, 44, 0.86) 0%,
+    rgba(6, 14, 24, 0.78) 100%
+  );
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.7),
+    0 0 120px rgba(60, 180, 240, 0.24);
+}
+
+.celebration__card--goal {
+  border-color: rgba(242, 217, 28, 0.42);
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.7),
+    0 0 140px rgba(242, 217, 28, 0.3);
+}
+
+.celebration__eyebrow {
+  margin: 0 0 0.8em;
+  font-size: calc(var(--u) * 0.95);
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--accent-warm);
+}
+
+.celebration__card--goal .celebration__eyebrow {
+  color: var(--accent-gold);
+}
+
+.celebration__headline {
+  font-size: calc(var(--u) * 4.66);
+  font-weight: 800;
+  line-height: 1.03;
+  letter-spacing: -0.03em;
+  background: linear-gradient(180deg, #ffffff 0%, #a7e8c4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-wrap: balance;
+}
+
+.celebration__card--goal .celebration__headline {
+  background: linear-gradient(180deg, #ffffff 0%, #f7e98a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.celebration__sub {
+  margin: 1em 0 0;
+  font-size: calc(var(--u) * 1.38);
+  color: var(--text-mid);
+}
+
+/* ------------------------------------------------------------- Estado */
+
+.status {
+  position: fixed;
+  right: 1.4vw;
+  bottom: 1.4vh;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.4em 0.9em;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: rgba(8, 16, 28, 0.72);
+  backdrop-filter: blur(10px);
+  font-size: calc(var(--u) * 0.73);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.status__dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--warn);
+  animation: status-blink 1.4s ease-in-out infinite;
+}
+
+.status--demo .status__dot {
+  background: var(--accent);
+}
+
+.status--reconnecting .status__dot {
+  background: var(--danger);
+}
+
+@keyframes status-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.28;
+  }
+}
+
+/* ------------------------------------------- Pantallas muy apaisadas */
+
+/* Ultra-wide: sobra ancho, así que las columnas se achican en proporción
+   y el árbol se queda con el centro. Asimétricas, igual que en el layout
+   base: la izquierda sostiene la pregunta, la derecha sólo listas. */
+@media (min-aspect-ratio: 21/9) {
+  .overlay {
+    grid-template-columns: minmax(290px, 16vw) 1fr minmax(205px, 11vw);
+  }
+}
+
+/* Pantalla vertical (tótem): las columnas pasan a filas. */
+@media (max-aspect-ratio: 1/1) {
+  .overlay {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas:
+      'top    top'
+      'center center'
+      'left   right'
+      'bottom bottom';
+  }
+
+  .overlay__left,
+  .overlay__right {
+    align-self: end;
+  }
+
+  .recent {
+    display: none;
+  }
+}
+
+/* =====================================================================
+   Etiquetas flotantes ancladas a las hojas.
+
+   Chicas y con poco fondo a propósito: son cinco a la vez, están sobre la
+   copa y no deben competir con el árbol. Sustituyen a la burbuja central,
+   que mostraba una sola idea y tapaba justo lo que había que mirar.
+   ===================================================================== */
+
+.tag {
+  width: max-content;
+  max-width: calc(var(--u) * 13);
+  display: flex;
+  flex-direction: column;
+  gap: 0.22em;
+  padding: 0.5em 0.7em;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--tag) 28%, transparent);
+  background: linear-gradient(
+    155deg,
+    rgba(6, 14, 24, 0.82) 0%,
+    rgba(5, 10, 18, 0.68) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-ui);
+  text-align: left;
+  user-select: none;
+  /* La opacidad y el desplazamiento los maneja el resolvedor de colisiones
+     cuadro a cuadro; una transición acá solo agregaría retardo. */
+  animation: tag-in 620ms var(--ease-out);
+}
+
+.tag__head {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: calc(var(--u) * 0.52);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tag);
+}
+
+.tag__emoji {
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+.tag__text {
+  font-size: calc(var(--u) * 0.74);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text-hi);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tag__time {
+  font-size: calc(var(--u) * 0.55);
+  letter-spacing: 0.08em;
+  color: var(--text-low);
+}
+
+/* La idea que acaba de llegar entra con un halo que se apaga solo. */
+.tag--new {
+  border-color: color-mix(in srgb, var(--tag) 58%, transparent);
+  animation: tag-in 620ms var(--ease-out), tag-arrive 2.6s var(--ease-out);
+}
+
+@keyframes tag-in {
+  from {
+    opacity: 0;
+    transform: translateY(9px) scale(0.94);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@keyframes tag-arrive {
+  0% {
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5),
+      0 0 0 0 color-mix(in srgb, var(--tag) 60%, transparent);
+  }
+  18% {
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5),
+      0 0 30px 3px color-mix(in srgb, var(--tag) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5),
+      0 0 0 0 color-mix(in srgb, var(--tag) 0%, transparent);
+  }
+}
+
+/* Silencio de emergencia activo (Ctrl+H). Ámbar: es un estado de operación
+   deliberado, no una falla de conexión. */
+.status--silencio {
+  border-color: rgba(242, 217, 28, 0.4);
+  color: #f7e98a;
+}
+
+.status--silencio .status__dot {
+  background: var(--smt-amarillo);
+}

@@ -1,0 +1,11 @@
+# Normaliza los fines de línea en el repo.
+# Sin esto, cada archivo tocado desde Windows aparece como "todo el archivo
+# cambió" en el diff, y las revisiones se vuelven ilegibles.
+* text=auto eol=lf
+
+# Binarios: no tocar.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
