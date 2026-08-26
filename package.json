@@ -16,7 +16,8 @@
     "check:layout": "esbuild scripts/check-layout.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-layout.mjs --log-level=error && node node_modules/.cache/check-layout.mjs",
     "check:filtro": "esbuild scripts/check-filtro.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-filtro.mjs --log-level=error && node node_modules/.cache/check-filtro.mjs",
     "typecheck:api": "tsc --noEmit -p api/tsconfig.json",
-    "check:ia": "esbuild scripts/check-ia.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-ia.mjs --log-level=error && node node_modules/.cache/check-ia.mjs"
+    "check:ia": "esbuild scripts/check-ia.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-ia.mjs --log-level=error && node node_modules/.cache/check-ia.mjs",
+    "probar:ia": "esbuild scripts/probar-ia.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/probar-ia.mjs --log-level=error && node node_modules/.cache/probar-ia.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

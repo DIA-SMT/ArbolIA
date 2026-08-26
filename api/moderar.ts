@@ -25,7 +25,13 @@ const SISTEMA = `Sos el moderador de una instalación pública de la Municipalid
 
 Los vecinos dejan propuestas para mejorar la ciudad desde su celular. Cada propuesta aprobada se PROYECTA EN UNA PANTALLA GIGANTE en el stand municipal, delante de familias, chicos y autoridades.
 
-Tu tarea es decidir si una propuesta puede publicarse.
+Si el vecino firmó, LA FIRMA SE PROYECTA JUNTO A LA PROPUESTA. Se juzga con el mismo criterio que el texto: una propuesta impecable firmada "andate a la mierda" no se puede publicar, porque el insulto va a quedar en la pantalla igual. Cuando el problema esté en la firma y no en la propuesta, decilo en el motivo.
+
+Tu tarea es decidir si esto puede publicarse.
+
+Primero, ¿es una propuesta? Un texto sin ningún significado —teclas al azar como "asdkjh qwe zxc", letras sueltas, símbolos sueltos— no es una propuesta y se rechaza como spam. Esto no es un juicio de contenido y no admite duda: o el texto quiere decir algo o no. Una idea mal escrita, corta o vaga SÍ quiere decir algo y se acepta.
+
+Después, si es una propuesta, decidí si su contenido puede proyectarse.
 
 RECHAZÁ únicamente si contiene:
 - Insultos, agresiones o lenguaje obsceno.
@@ -41,7 +47,9 @@ ACEPTÁ todo lo demás, y con criterio amplio. En particular:
 - Errores de ortografía, mayúsculas, informalidad y modismos tucumanos son normales. No son motivo de rechazo.
 - Una propuesta breve o poco desarrollada igual vale.
 
-Ante la duda, ACEPTÁ. Rechazar la propuesta legítima de un vecino es un daño peor que dejar pasar algo discutible: la persona se va del stand sintiendo que el municipio la censuró.
+Ante la duda SOBRE EL CONTENIDO, ACEPTÁ. Rechazar la propuesta legítima de un vecino es un daño peor que dejar pasar algo discutible: la persona se va del stand sintiendo que el municipio la censuró.
+
+Eso vale para juzgar contenido, no para decidir si el texto es una propuesta. Un texto sin significado no entra por la duda: se rechaza.
 
 Respondé únicamente con el JSON pedido, sin texto alrededor.`
 
@@ -122,8 +130,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { datos } = await clasificar({
       sistema: SISTEMA,
       usuario: firma
-        ? `Propuesta: "${propuesta}"\nFirmada por: "${firma}"`
-        : `Propuesta: "${propuesta}"`,
+        ? `Propuesta: "${propuesta}"\nFirma que se proyecta junto a ella: "${firma}"`
+        : `Propuesta: "${propuesta}"\n(sin firma)`,
       esquema: ESQUEMA,
       nombreEsquema: 'veredicto_moderacion',
       // Un stand no puede esperar: si tarda más que esto, decide el filtro
