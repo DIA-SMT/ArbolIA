@@ -35,6 +35,30 @@ export function normalize(text: string): string {
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
+ * Deshace las sustituciones de tipo "leet".
+ *
+ * Un vecino escribió "gestion de m1erd4" y pasó entero: el filtro comparaba
+ * letras, y ahí no hay ninguna palabra de la lista. Con 1 por i, 4 por a y
+ * 0 por o se evade cualquier lista de términos, y es lo primero que prueba
+ * quien quiere colar algo.
+ *
+ * Se usa como comparación ADICIONAL, no en reemplazo: convertir dígitos a
+ * letras en todo texto podría deformar propuestas legítimas que hablan de la
+ * ruta 9 o de plantar 100 árboles.
+ */
+const LEET_DE = '013457@$!'
+const LEET_A = 'oieastasi'
+
+function deshacerLeet(texto: string): string {
+  let out = ''
+  for (const c of texto) {
+    const i = LEET_DE.indexOf(c)
+    out += i >= 0 ? LEET_A[i] : c
+  }
+  return out
+}
+
+/**
  * ¿El texto muestra el patrón de una evasión deliberada?
  *
  * Es decir letras sueltas separadas por símbolos o espacios: "p-u-t-o",
@@ -70,12 +94,17 @@ export function checkIdeaText(text: string): ModerationResult {
 
   const directo = BLOCKED.some((w) => contienePalabra(normalized, w))
 
+  // Misma comparación sobre el texto con los dígitos revertidos a letras.
+  const conLeet =
+    !directo && BLOCKED.some((w) => contienePalabra(deshacerLeet(normalized), w))
+
   const evasion =
     !directo &&
+    !conLeet &&
     pareceEvasion(normalized) &&
     BLOCKED.some((w) => normalized.replace(/[^a-z0-9]/g, '').includes(w.replace(/\s/g, '')))
 
-  if (directo || evasion) {
+  if (directo || conLeet || evasion) {
     return {
       ok: false,
       reason: 'Revisá el texto: hay palabras que no podemos publicar en la pantalla.',

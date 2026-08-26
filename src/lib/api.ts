@@ -100,6 +100,10 @@ export interface SubmitIdeaInput {
   /** Opcional. Si el rango es 'menor18' el servidor lo descarta igual. */
   authorName?: string | null
   ageRange?: AgeRange | null
+  /** La revisión semántica pidió que un humano la mire antes de proyectarla. */
+  revisar?: boolean
+  /** Por qué. Queda en el panel, nunca se proyecta. */
+  motivo?: string | null
 }
 
 export type SubmitErrorCode = 'cooldown' | 'hourly_limit' | 'offline' | 'unknown'
@@ -134,6 +138,8 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<Idea> {
     p_device_id: input.deviceId,
     p_author_name: input.authorName?.trim() || null,
     p_age_range: input.ageRange ?? null,
+    p_revisar: input.revisar === true,
+    p_motivo: input.motivo ?? null,
   })
 
   if (error) {
@@ -185,7 +191,9 @@ export async function fetchAdminIdeas(filters: AdminFilters = {}): Promise<Idea[
     .from('ideas')
     // El panel sí ve los datos internos: los necesita para moderar y para
     // el informe posterior.
-    .select('id, text, category, device_id, status, archived_at, created_at, author_name, age_range')
+    .select(
+      'id, text, category, device_id, status, archived_at, created_at, author_name, age_range, revision_motivo',
+    )
     .order('created_at', { ascending: false })
     .limit(filters.limit ?? 300)
 

@@ -41,6 +41,8 @@ export interface Idea {
   /** Opcional: quien no quiere firmar participa igual. */
   author_name?: string | null
   age_range?: AgeRange | null
+  /** Por qué quedó en la cola. Interno: sólo lo ve el panel. */
+  revision_motivo?: string | null
   status: IdeaStatus
   archived_at: string | null
   created_at: string

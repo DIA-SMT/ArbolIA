@@ -854,3 +854,189 @@
   border-radius: 2px;
   background: linear-gradient(180deg, var(--smt-azul), var(--smt-celeste));
 }
+
+/* --------------------------------------------------------------- Migue */
+
+/*
+   Por qué la propuesta quedó en la cola. Quien modera necesita ver el
+   motivo junto al texto: sin eso lee algo que parece inofensivo y no
+   entiende por qué frenó.
+*/
+.row__motivo {
+  margin: 0.45rem 0 0;
+  padding: 0.35rem 0.55rem;
+  border-radius: 7px;
+  border-left: 2px solid var(--warn);
+  background: rgba(234, 179, 8, 0.08);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text-mid);
+  overflow-wrap: anywhere;
+}
+
+.row__motivo span {
+  margin-right: 0.3rem;
+  color: var(--warn);
+}
+
+.migue {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1.4rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 20, 32, 0.6);
+}
+
+.migue__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.migue__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--text-hi);
+}
+
+.migue__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--smt-celeste);
+  box-shadow: 0 0 10px var(--smt-celeste);
+}
+
+.migue__sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-low);
+}
+
+.migue__hilo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 180px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+
+.migue__vacio {
+  margin: auto 0;
+  text-align: center;
+  color: var(--text-low);
+  font-size: 0.85rem;
+}
+
+.migue__sugs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.migue__sug {
+  padding: 0.42rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-mid);
+  background: rgba(12, 24, 38, 0.7);
+  font-size: 0.78rem;
+  color: var(--text-mid);
+  transition: all 160ms ease;
+}
+
+.migue__sug:hover {
+  border-color: var(--smt-celeste);
+  color: var(--text-hi);
+}
+
+.burbuja {
+  max-width: 82%;
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  /* Migue responde en párrafos y listas: sin esto llega todo en un bloque. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.burbuja--user {
+  align-self: flex-end;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--text-hi);
+}
+
+.burbuja--assistant {
+  align-self: flex-start;
+  border: 1px solid var(--line-soft);
+  background: rgba(12, 24, 38, 0.8);
+  color: var(--text-mid);
+}
+
+.burbuja__puntos {
+  display: inline-block;
+  width: 30px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--text-low);
+  animation: migue-latido 1.1s ease-in-out infinite;
+}
+
+@keyframes migue-latido {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.75; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burbuja__puntos { animation: none; opacity: 0.5; }
+}
+
+.migue__error {
+  margin: 0.7rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  background: rgba(239, 68, 68, 0.1);
+  font-size: 0.8rem;
+  color: #fecdd3;
+}
+
+.migue__form {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.migue__input {
+  flex: 1;
+  padding: 0.55rem 0.8rem;
+  border-radius: 9px;
+  border: 1px solid var(--line-mid);
+  background: rgba(12, 24, 38, 0.7);
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  color: var(--text-hi);
+}
+
+.migue__input:focus {
+  outline: none;
+  border-color: var(--smt-celeste);
+}
+
+@media (max-width: 640px) {
+  .burbuja { max-width: 92%; }
+  .migue__form { flex-direction: column; }
+}

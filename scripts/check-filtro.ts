@@ -56,6 +56,11 @@ const LEGITIMAS = [
   'Arreglar el bache de la calle Muñecas',
   'Wifi libre en las plazas del centro',
   'Que los trámites se puedan hacer sin ir a la municipalidad',
+  // Con números: la reversión de leet no puede deformar estas.
+  'Plantar 100 árboles nativos en la avenida',
+  'Mejorar la parada del 118 en la terminal',
+  'Un carril exclusivo en la ruta 9',
+  'Que la línea 4 pase cada 10 minutos',
 ]
 
 LEGITIMAS.forEach(debePasar)
@@ -73,10 +78,16 @@ const OFENSIVAS = [
   'andate a la mierda con tus obras',
   'todos ladrones',
   'son todos unos chorros',
-  // Evasiones deliberadas.
+  // Evasiones por separadores.
   'sos un p-e-l-o-t-u-d-o',
   'esto es una m i e r d a',
   'que p.u.t.o el intendente',
+  // Evasiones "leet". El primero es el caso real que se coló en el stand.
+  'Estoy harto de esta gestion de m1erd4, no hace nada',
+  'que pel0tud0 el intendente',
+  'son unos l4dr0nes',
+  'todo m13rd4',
+  'sos un 1d10t4',
 ]
 
 OFENSIVAS.forEach(debeFrenar)

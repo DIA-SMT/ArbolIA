@@ -14,6 +14,7 @@ import {
 } from '../../lib/api'
 import TimelineChart from './TimelineChart'
 import AreasDonut from './AreasDonut'
+import MiguePanel from './MiguePanel'
 import { GOAL_FALLBACK } from '../../lib/config'
 import { CATEGORIES, getCategory } from '../../lib/categories'
 import type { CategorySlug, Idea, IdeaStatus, Stats } from '../../lib/types'
@@ -329,6 +330,16 @@ function Dashboard() {
                         </span>
                         <StatusPill status={idea.status} />
                       </div>
+                      {/*
+                        Por qué está en la cola. Sin esto, quien modera lee
+                        una propuesta que parece inofensiva y no entiende por
+                        qué frenó — y la publica sin mirarla dos veces.
+                      */}
+                      {idea.revision_motivo && idea.status === 'flagged' && (
+                        <p className="row__motivo">
+                          <span aria-hidden>⚑</span> {idea.revision_motivo}
+                        </p>
+                      )}
                     </div>
 
                     <div className="row__actions">
@@ -400,6 +411,9 @@ function Dashboard() {
           </div>
         </aside>
       </div>
+
+      {/* ---------- Asistente ---------- */}
+      <MiguePanel ideas={ideas} stats={stats} />
     </div>
   )
 }

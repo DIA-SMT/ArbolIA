@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CATEGORIES, DEFAULT_CATEGORY } from '../../lib/categories'
 import { DEMO_MODE, IDEA_MAX_LENGTH, IS_SUPABASE_CONFIGURED } from '../../lib/config'
 import { checkIdeaText } from '../../lib/moderation'
+import { revisarPropuesta } from '../../lib/ia'
 import { getDeviceId, rememberSentIdea } from '../../lib/device'
 import { fetchStats, submitIdea, SubmitError } from '../../lib/api'
 import { AGE_RANGES, type AgeRange, type CategorySlug } from '../../lib/types'
@@ -81,6 +82,13 @@ export default function MobileRoute() {
       return
     }
 
+    // Revisión semántica: atrapa lo que una lista de palabras no puede
+    // anotar —una acusación contra alguien con nombre y apellido, el
+    // teléfono de un tercero, una amenaza sin una sola grosería—. Su
+    // veredicto no rechaza: manda la propuesta a la misma cola de revisión
+    // que ya usa el filtro de palabras. Si no responde, sigue viaje.
+    const revision = await revisarPropuesta(text, pideNombre ? nombre : null)
+
     try {
       const idea = await submitIdea({
         text,
@@ -88,6 +96,8 @@ export default function MobileRoute() {
         deviceId,
         authorName: pideNombre ? nombre : null,
         ageRange: edad,
+        revisar: !revision.publicar,
+        motivo: revision.publicar ? null : revision.motivo,
       })
       rememberSentIdea(idea.id)
 
