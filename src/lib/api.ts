@@ -132,15 +132,39 @@ export class SubmitError extends Error {
 export async function submitIdea(input: SubmitIdeaInput): Promise<Idea> {
   const db = requirePublic()
 
-  const { data, error } = await db.rpc('arbolia_submit_idea', {
+  const base = {
     p_text: input.text.trim(),
     p_category: input.category ?? DEFAULT_CATEGORY,
     p_device_id: input.deviceId,
     p_author_name: input.authorName?.trim() || null,
     p_age_range: input.ageRange ?? null,
+  }
+
+  let { data, error } = await db.rpc('arbolia_submit_idea', {
+    ...base,
     p_revisar: input.revisar === true,
     p_motivo: input.motivo ?? null,
   })
+
+  /*
+   * Ventana de despliegue.
+   *
+   * PostgREST resuelve la función por los nombres de los parámetros que
+   * recibe. Si este frontend llega antes que la migración 008, la base
+   * todavía tiene la versión de cinco parámetros, ninguna coincide con los
+   * siete que mandamos y responde PGRST202.
+   *
+   * Se reintenta sin los parámetros nuevos. La propuesta entra igual y la
+   * modera el filtro de palabras, que es exactamente lo que había hasta
+   * ahora. Un orden de despliegue no puede dejar a un vecino sin participar.
+   */
+  if (error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message))) {
+    console.warn(
+      '[arbolia] Falta ejecutar supabase/migrations/008-revision-ia.sql: ' +
+        'la revisión semántica no puede derivar propuestas a la cola.',
+    )
+    ;({ data, error } = await db.rpc('arbolia_submit_idea', base))
+  }
 
   if (error) {
     const msg = `${error.message} ${error.hint ?? ''}`
