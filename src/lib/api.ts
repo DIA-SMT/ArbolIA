@@ -1,6 +1,6 @@
 import { requirePublic, requireSupabase, supabase } from './supabase'
 import { DEFAULT_CATEGORY } from './categories'
-import type { CategorySlug, Idea, IdeaStatus, Stats } from './types'
+import type { AgeRange, AgeStat, CategorySlug, Idea, IdeaStatus, Stats } from './types'
 
 /** Cuantas ideas carga la pantalla al arrancar para reconstruir el arbol. */
 export const TREE_HISTORY_LIMIT = 900
@@ -87,6 +87,9 @@ export interface SubmitIdeaInput {
   text: string
   category: CategorySlug
   deviceId: string
+  /** Opcional. Si el rango es 'menor18' el servidor lo descarta igual. */
+  authorName?: string | null
+  ageRange?: AgeRange | null
 }
 
 export type SubmitErrorCode = 'cooldown' | 'hourly_limit' | 'offline' | 'unknown'
@@ -119,6 +122,8 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<Idea> {
     p_text: input.text.trim(),
     p_category: input.category ?? DEFAULT_CATEGORY,
     p_device_id: input.deviceId,
+    p_author_name: input.authorName?.trim() || null,
+    p_age_range: input.ageRange ?? null,
   })
 
   if (error) {
@@ -255,4 +260,12 @@ export async function fetchTimeline(hours = 24): Promise<TimelinePoint[]> {
   const { data, error } = await db.rpc('arbolia_timeline', { p_hours: hours })
   if (error) throw error
   return (data as TimelinePoint[]) ?? []
+}
+
+/** Participación por rango etario: qué pide cada generación. */
+export async function fetchPorEdad(): Promise<AgeStat[]> {
+  const db = requirePublic()
+  const { data, error } = await db.rpc('arbolia_por_edad')
+  if (error) throw error
+  return (data as AgeStat[]) ?? []
 }

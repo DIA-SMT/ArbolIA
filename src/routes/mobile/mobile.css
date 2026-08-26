@@ -431,3 +431,83 @@
     font-size: 0.78rem;
   }
 }
+
+/* =====================================================================
+   Edad y nombre
+   ===================================================================== */
+
+.edad {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.edad legend {
+  padding: 0;
+}
+
+/*
+ * Tres columnas: cinco rangos entran en dos filas sin que ninguno quede
+ * con el texto cortado, y siguen siendo áreas de toque cómodas de pie.
+ */
+.edad__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+
+.chip--edad {
+  justify-content: center;
+  text-align: center;
+  font-size: 0.78rem;
+  min-height: 44px;
+  padding: 0.5rem 0.4rem;
+}
+
+/* El quinto rango ocupa el ancho sobrante de la segunda fila. */
+.chip--edad:last-child {
+  grid-column: span 2;
+}
+
+.nombre {
+  display: flex;
+  flex-direction: column;
+}
+
+.nombre__input {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--line-mid);
+  background: rgba(10, 20, 32, 0.72);
+  /* 16px reales: menos que eso y iOS hace zoom al enfocar. */
+  font-size: 1rem;
+  color: var(--text-hi);
+  -webkit-appearance: none;
+}
+
+.nombre__input::placeholder {
+  color: rgba(190, 215, 235, 0.34);
+}
+
+.nombre__input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--pick) 62%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pick) 14%, transparent);
+}
+
+.nombre__input:disabled {
+  opacity: 0.6;
+}
+
+/* Con dos campos más, la pantalla corta ya no entra completa: el formulario
+   pasa a desplazarse en lugar de comprimir las áreas de toque. */
+@media (max-height: 760px) {
+  .edad__grid {
+    gap: 0.4rem;
+  }
+  .chip--edad {
+    min-height: 42px;
+    font-size: 0.74rem;
+  }
+}

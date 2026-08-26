@@ -10,11 +10,36 @@ export type CategorySlug =
 
 export type IdeaStatus = 'visible' | 'flagged' | 'hidden'
 
+/**
+ * Rango etario de quien propone.
+ *
+ * Rango y no edad exacta: en un stand público participan menores, y guardar
+ * la edad precisa de un menor es un dato sensible. El rango da la misma
+ * lectura estadística y en el celular se elige de un toque.
+ */
+export type AgeRange = 'menor18' | '18-29' | '30-44' | '45-59' | '60mas'
+
+export interface AgeOption {
+  slug: AgeRange
+  label: string
+}
+
+export const AGE_RANGES: AgeOption[] = [
+  { slug: 'menor18', label: 'Menos de 18' },
+  { slug: '18-29', label: '18 a 29' },
+  { slug: '30-44', label: '30 a 44' },
+  { slug: '45-59', label: '45 a 59' },
+  { slug: '60mas', label: '60 o más' },
+]
+
 export interface Idea {
   id: string
   text: string
   category: CategorySlug
   device_id: string
+  /** Opcional: quien no quiere firmar participa igual. */
+  author_name?: string | null
+  age_range?: AgeRange | null
   status: IdeaStatus
   archived_at: string | null
   created_at: string
@@ -43,6 +68,14 @@ export interface Stats {
   participants: number
   areas: number
   byCategory: CategoryCount[]
+}
+
+/** Participación por rango etario, para el panel. */
+export interface AgeStat {
+  slug: string
+  label: string
+  total: number
+  topArea: CategorySlug | null
 }
 
 export interface ModerationEvent {

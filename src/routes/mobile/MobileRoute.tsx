@@ -4,7 +4,7 @@ import { DEMO_MODE, IDEA_MAX_LENGTH, IS_SUPABASE_CONFIGURED } from '../../lib/co
 import { checkIdeaText } from '../../lib/moderation'
 import { getDeviceId, rememberSentIdea } from '../../lib/device'
 import { fetchStats, submitIdea, SubmitError } from '../../lib/api'
-import type { CategorySlug } from '../../lib/types'
+import { AGE_RANGES, type AgeRange, type CategorySlug } from '../../lib/types'
 import './mobile.css'
 
 type Phase = 'form' | 'sending' | 'done' | 'review'
@@ -21,6 +21,8 @@ type Phase = 'form' | 'sending' | 'done' | 'review'
 export default function MobileRoute() {
   const [text, setText] = useState('')
   const [category, setCategory] = useState<CategorySlug>(DEFAULT_CATEGORY)
+  const [edad, setEdad] = useState<AgeRange | null>(null)
+  const [nombre, setNombre] = useState('')
   const [phase, setPhase] = useState<Phase>('form')
   const [error, setError] = useState<string | null>(null)
   const [position, setPosition] = useState<number | null>(null)
@@ -31,7 +33,12 @@ export default function MobileRoute() {
   const chosen = CATEGORIES.find((c) => c.slug === category) ?? CATEGORIES[7]
   const remaining = IDEA_MAX_LENGTH - text.length
   const isForm = phase === 'form' || phase === 'sending'
-  const canSend = text.trim().length >= 3 && phase === 'form'
+  // La edad es obligatoria: es el dato que le da sentido al análisis
+  // posterior ("qué pide cada generación"). El nombre no.
+  const canSend = text.trim().length >= 3 && edad !== null && phase === 'form'
+  // A un menor no se le pide el nombre. Un nombre de menor en una base
+  // pública y proyectable no corresponde, y el servidor lo descarta igual.
+  const pideNombre = edad !== null && edad !== 'menor18'
 
   useEffect(() => {
     document.body.dataset.route = 'mobile'
@@ -75,7 +82,13 @@ export default function MobileRoute() {
     }
 
     try {
-      const idea = await submitIdea({ text, category, deviceId })
+      const idea = await submitIdea({
+        text,
+        category,
+        deviceId,
+        authorName: pideNombre ? nombre : null,
+        ageRange: edad,
+      })
       rememberSentIdea(idea.id)
 
       if (idea.status !== 'visible') {
@@ -107,6 +120,8 @@ export default function MobileRoute() {
   function reset() {
     setText('')
     setCategory(DEFAULT_CATEGORY)
+    // La edad y el nombre se conservan: si la misma persona deja otra idea,
+    // volver a preguntárselo es fricción sin sentido.
     setError(null)
     setPosition(null)
     setPhase('form')
@@ -184,6 +199,45 @@ export default function MobileRoute() {
               </div>
             </div>
 
+            {/* ---------- Edad: obligatoria ---------- */}
+            <fieldset className="edad">
+              <legend className="cats__label">Tu edad</legend>
+              <div className="edad__grid">
+                {AGE_RANGES.map((r) => (
+                  <button
+                    key={r.slug}
+                    type="button"
+                    className={`chip chip--edad ${edad === r.slug ? 'chip--on' : ''}`}
+                    style={{ ['--chip' as string]: chosen.color }}
+                    onClick={() => setEdad(r.slug)}
+                    disabled={phase === 'sending'}
+                    aria-pressed={edad === r.slug}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            {/* ---------- Nombre: opcional, y nunca a un menor ---------- */}
+            {pideNombre && (
+              <label className="nombre">
+                <span className="cats__label">
+                  Tu nombre <span>(opcional)</span>
+                </span>
+                <input
+                  className="nombre__input"
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value.slice(0, 40))}
+                  placeholder="Cómo querés que te llamemos"
+                  maxLength={40}
+                  autoComplete="given-name"
+                  disabled={phase === 'sending'}
+                />
+              </label>
+            )}
+
             <button type="submit" className="send" disabled={!canSend}>
               {phase === 'sending' ? (
                 <>
@@ -196,7 +250,9 @@ export default function MobileRoute() {
             </button>
 
             <p className="mob__privacy">
-              No pedimos tu nombre, tu mail ni tu teléfono. Tu idea es anónima.
+              {edad === null
+                ? 'Elegí tu edad para poder enviar. No pedimos mail ni teléfono.'
+                : 'El nombre es opcional. No pedimos mail, teléfono ni documento.'}
             </p>
           </form>
         </main>
