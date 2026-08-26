@@ -61,6 +61,29 @@ const LEGITIMAS = [
   'Mejorar la parada del 118 en la terminal',
   'Un carril exclusivo en la ruta 9',
   'Que la línea 4 pase cada 10 minutos',
+  /*
+   * Siglas punteadas. Éstas son las que descubrió la auditoría de las
+   * migraciones, y estaban rotas de verdad: la tercera regla se abría con
+   * cualquier "U.N.T." o "A o B" y ahí volvía a comparar por subcadena
+   * contra la frase entera. "computadoras" contiene "puta" y "controlar"
+   * contiene "trola" — el mismo bug de la migración 004, vivo en una regla
+   * que nadie había mirado.
+   */
+  'Que la U.N.T. done computadoras para las escuelas municipales',
+  'El C.G.M. del Barrio Sur necesita más computadoras',
+  'Tramitar el D.N.I. y poder controlar el turno por la web',
+  'Elegir entre la opción A o B para las computadoras del CGM',
+  'Una O.N.G. que ayude con los perros de la calle',
+  'Ampliar el horario del C.A.P.S. de 8 a 20',
+  'Que el S.A.M.E. tenga base en el sur',
+  // Con un número suelto al lado de la sigla: revertir el leet sobre toda
+  // la frase fabricaba palabras que nadie escribió ("sumar 1 contenedor"
+  // se convertía en "sumaricontenedor", que contiene "maricón").
+  'Sumar 1 contenedor de reciclaje por cuadra en el C.G.M. Sur',
+  'Poner un banco 1 más en la plaza del C.I.C.',
+  'Turnos del S.A.M.E. y más control 4 veces por semana',
+  'Iluminar el pasaje S. Peña entre 25 y 9 de Julio',
+  'Colectivos que lleguen a S. M. de Tucumán de noche',
 ]
 
 LEGITIMAS.forEach(debePasar)
@@ -88,6 +111,14 @@ const OFENSIVAS = [
   'son unos l4dr0nes',
   'todo m13rd4',
   'sos un 1d10t4',
+  // Separadores + leet mezclados. Los dos primeros los frenaba la versión
+  // vieja y los perdimos al compactar sobre el texto ya des-leeteado: los
+  // símbolos se volvían letras ("p!u@t$o" daba "piuatso") y la tira dejaba
+  // de coincidir. Ahora los símbolos se sacan antes.
+  'p!u@t$o el que lee esto',
+  'sos un b$o!l@u$d!o',
+  'p-u-7-0 el que lee esto',
+  'c-h-o-t-o el intendente',
 ]
 
 OFENSIVAS.forEach(debeFrenar)

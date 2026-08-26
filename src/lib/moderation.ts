@@ -59,15 +59,23 @@ function deshacerLeet(texto: string): string {
 }
 
 /**
- * ¿El texto muestra el patrón de una evasión deliberada?
+ * Las tiras de caracteres sueltos separados por símbolos: "p-u-t-o",
+ * "p.u.t.o", "p u t o", "p!u@t$o".
  *
- * Es decir letras sueltas separadas por símbolos o espacios: "p-u-t-o",
- * "p.u.t.o", "p u t o". Sólo en ese caso vale comparar el texto compactado,
- * que es lo que atrapa la evasión pero también lo que producía los falsos
- * positivos si se aplicaba a cualquier frase.
+ * Devuelve cada tira por separado, y ahí está todo el punto. Antes se
+ * detectaba la presencia de una tira y después se comparaba contra la
+ * FRASE ENTERA compactada — con lo cual una sigla cualquiera abría la
+ * puerta y "computadoras" pasaba a contener "puta", "controlar" a
+ * contener "trola". Una propuesta sobre computadoras para escuelas que
+ * mencionara la U.N.T. terminaba acusada.
+ *
+ * Compactando sólo la tira eso no puede pasar: "computadoras" no tiene
+ * separadores adentro, así que nunca forma parte de una tira.
  */
-function pareceEvasion(texto: string): boolean {
-  return /(^|[^a-z0-9])([a-z][^a-z0-9]+){2,}[a-z]($|[^a-z0-9])/i.test(texto)
+const TIRAS_SUELTAS = /(^|[^a-z0-9])((?:[a-z0-9][^a-z0-9]+){2,}[a-z0-9])([^a-z0-9]|$)/g
+
+function tirasSueltas(normalizado: string): string[] {
+  return [...normalizado.matchAll(TIRAS_SUELTAS)].map((m) => m[2])
 }
 
 function contienePalabra(normalizado: string, palabra: string): boolean {
@@ -98,11 +106,15 @@ export function checkIdeaText(text: string): ModerationResult {
   const conLeet =
     !directo && BLOCKED.some((w) => contienePalabra(deshacerLeet(normalized), w))
 
+  // Los símbolos se sacan ANTES de revertir el leet, para que "p!u@t$o"
+  // dé "puto" y no "piuatso".
   const evasion =
     !directo &&
     !conLeet &&
-    pareceEvasion(normalized) &&
-    BLOCKED.some((w) => normalized.replace(/[^a-z0-9]/g, '').includes(w.replace(/\s/g, '')))
+    tirasSueltas(normalized).some((tira) => {
+      const compacta = deshacerLeet(tira.replace(/[^a-z0-9]/g, ''))
+      return BLOCKED.some((w) => compacta.includes(w.replace(/\s/g, '')))
+    })
 
   if (directo || conLeet || evasion) {
     return {
