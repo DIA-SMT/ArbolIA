@@ -1,5 +1,6 @@
 -- =====================================================================
 --  REVERSIÓN de las migraciones 007 y 008
+--  NO EJECUTAR salvo que haya que volver atrás en vivo.
 --
 --  Para usar sólo si algo sale mal durante ExpoCom y hay que volver al
 --  estado anterior rápido.
