@@ -259,24 +259,44 @@ async function main() {
    */
   console.log('\nDATOS INTERNOS')
 
-  const { data: fila } = await db.from('ideas').select('*').limit(1)
-  const columnas = fila?.[0] ? Object.keys(fila[0]) : []
+  /*
+   * Cada columna interna se prueba por separado y se exige un rechazo
+   * explícito. Antes esto miraba las claves de un `select('*')`: como esa
+   * consulta ahora falla, la fila venía vacía y el check pasaba sin haber
+   * comprobado nada. Un check que pasa por la razón equivocada es peor que
+   * no tenerlo, porque da por cubierto algo que nadie miró.
+   */
+  const rechaza = async (columnas: string) => {
+    const { error } = await db.from('ideas').select(columnas).limit(1)
+    return Boolean(error)
+  }
+
+  // Primero: que lo público SÍ se pueda leer. Si esto fallara, los rechazos
+  // de abajo pasarían por estar todo roto, no por estar bien protegido.
+  const { data: publicas, error: publicasError } = await db
+    .from('ideas')
+    .select('id, text, category, created_at')
+    .limit(1)
 
   check(
-    'el nombre no es legible con la clave pública',
-    !columnas.includes('author_name'),
-    columnas.length ? `columnas públicas: ${columnas.join(', ')}` : '(sin ideas para comprobar)',
+    'las columnas públicas se leen sin problema',
+    !publicasError && (publicas?.length ?? 0) > 0,
+    publicasError ? publicasError.message : `${publicas?.length ?? 0} fila de muestra`,
   )
-  check('la edad no es legible con la clave pública', !columnas.includes('age_range'))
-  check('el identificador de dispositivo tampoco', !columnas.includes('device_id'))
 
-  // Pedirlos por nombre tiene que fallar, no devolver nulos.
-  const { error: dirigido } = await db.from('ideas').select('author_name, age_range').limit(1)
+  check('el nombre no es legible con la clave pública', await rechaza('author_name'))
+  check('la edad tampoco', await rechaza('age_range'))
+  check('el identificador de dispositivo tampoco', await rechaza('device_id'))
+
+  // Ni coladas junto a una columna permitida.
   check(
-    'pedirlos explícitamente es rechazado',
-    Boolean(dirigido),
-    dirigido ? 'permiso denegado, como corresponde' : 'LA CONSULTA PASÓ: falta la migración 006',
+    'no se pueden colar junto a una columna pública',
+    await rechaza('id, text, author_name'),
   )
+
+  // Y el comodín tiene que estar cerrado: con select=* PostgREST devolvería
+  // la fila entera si el rol tuviera permiso general sobre la tabla.
+  check('el comodín select=* está cerrado', await rechaza('*'))
 
   // Pero los agregados sí funcionan: el municipio necesita el informe.
   const { data: edades, error: edadesError } = await db.rpc('arbolia_por_edad')
