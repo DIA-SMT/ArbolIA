@@ -13,6 +13,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { armarContextoMigue } from '../src/lib/contextoMigue'
 import { revisarPropuesta } from '../src/lib/ia'
+import { conversar, hayAlgunProveedor, proveedores } from '../api/_lib/proveedor'
 import type { Idea, Stats } from '../src/lib/types'
 
 let fallas = 0
@@ -37,15 +38,23 @@ function archivos(dir: string, ext: string[]): string[] {
 console.log('\nLA CLAVE NO LLEGA AL NAVEGADOR')
 
 const fuentesCliente = archivos('src', ['.ts', '.tsx'])
-const conClave = fuentesCliente.filter((f) => /ANTHROPIC_API_KEY|sk-ant-/.test(readFileSync(f, 'utf8')))
+const conClave = fuentesCliente.filter((f) =>
+  /ANTHROPIC_API_KEY|OPENROUTER_API_KEY|sk-ant-|sk-or-v1-/.test(readFileSync(f, 'utf8')),
+)
 ok('ningún archivo de src/ nombra la clave', conClave.length === 0, conClave.join(', '))
 
 const conSdk = fuentesCliente.filter((f) => /@anthropic-ai\/sdk/.test(readFileSync(f, 'utf8')))
 ok('ningún archivo de src/ importa el SDK', conSdk.length === 0, conSdk.join(', '))
 
 const ejemplo = readFileSync('.env.example', 'utf8')
-ok('.env.example define la clave sin prefijo VITE_', /^ANTHROPIC_API_KEY=/m.test(ejemplo))
-ok('.env.example no define VITE_ANTHROPIC_*', !/VITE_ANTHROPIC/.test(ejemplo))
+ok('.env.example nombra OPENROUTER_API_KEY', /OPENROUTER_API_KEY=/.test(ejemplo))
+ok('.env.example nombra ANTHROPIC_API_KEY', /ANTHROPIC_API_KEY=/.test(ejemplo))
+// Lo que importa no es que estén, sino que ninguna lleve el prefijo que
+// las empaquetaría dentro del JavaScript que descarga cada visitante.
+ok(
+  'ninguna clave de IA lleva prefijo VITE_ en .env.example',
+  !/VITE_(ANTHROPIC|OPENROUTER|IA_)/.test(ejemplo),
+)
 
 const env = (() => {
   try {
@@ -55,7 +64,10 @@ const env = (() => {
   }
 })()
 if (env) {
-  ok('el .env real no expone la clave con VITE_', !/VITE_ANTHROPIC/.test(env))
+  ok(
+    'el .env real no expone ninguna clave de IA con VITE_',
+    !/VITE_(ANTHROPIC|OPENROUTER|IA_)/.test(env),
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -173,9 +185,150 @@ ok('/api/moderar llega a la función', !patron.test('/api/moderar'))
 ok('/api/migue llega a la función', !patron.test('/api/migue'))
 
 /* ------------------------------------------------------------------ */
+console.log('\nELECCIÓN DE PROVEEDOR')
+
+function conEntorno(vars: Record<string, string | undefined>, f: () => void) {
+  const previo: Record<string, string | undefined> = {}
+  for (const [k, v] of Object.entries(vars)) {
+    previo[k] = process.env[k]
+    if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  }
+  try {
+    f()
+  } finally {
+    for (const [k, v] of Object.entries(previo)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+  }
+}
+
+const NADA = { ANTHROPIC_API_KEY: undefined, OPENROUTER_API_KEY: undefined, IA_PROVEEDOR: undefined }
+
+conEntorno(NADA, () => {
+  ok('sin ninguna clave no hay proveedor', proveedores().length === 0 && !hayAlgunProveedor())
+})
+
+conEntorno({ ...NADA, OPENROUTER_API_KEY: 'sk-or-v1-prueba' }, () => {
+  ok('sólo con OpenRouter, se usa OpenRouter', proveedores().join() === 'openrouter')
+})
+
+conEntorno({ ...NADA, ANTHROPIC_API_KEY: 'sk-ant-prueba' }, () => {
+  ok('sólo con Anthropic, se usa Anthropic', proveedores().join() === 'anthropic')
+})
+
+conEntorno(
+  { ANTHROPIC_API_KEY: 'sk-ant-prueba', OPENROUTER_API_KEY: 'sk-or-v1-prueba', IA_PROVEEDOR: 'auto' },
+  () => {
+    ok('con las dos, arranca por Anthropic y cae a OpenRouter', proveedores().join() === 'anthropic,openrouter')
+  },
+)
+
+conEntorno(
+  { ANTHROPIC_API_KEY: 'sk-ant-prueba', OPENROUTER_API_KEY: 'sk-or-v1-prueba', IA_PROVEEDOR: 'openrouter' },
+  () => {
+    ok('IA_PROVEEDOR=openrouter ignora la clave de Anthropic', proveedores().join() === 'openrouter'),
+      ok('...y no deja sin proveedor', hayAlgunProveedor())
+  },
+)
+
+conEntorno({ ...NADA, IA_PROVEEDOR: 'openrouter' }, () => {
+  ok('pedir un proveedor sin su clave no lo inventa', proveedores().length === 0)
+})
+
+/* ------------------------------------------------------------------ */
+console.log('\nREARMADO DEL STREAM DE OPENROUTER')
+
+/**
+ * El stream llega partido por la red en trozos arbitrarios, no por evento.
+ * Un evento puede quedar cortado al medio entre dos trozos, y OpenRouter
+ * intercala comentarios de mantenimiento (": OPENROUTER PROCESSING") para
+ * que la conexión no se caiga. Si el rearmado falla, Migue muestra texto
+ * mutilado — y eso sólo se ve con red real, nunca en una prueba feliz.
+ */
+function streamFalso(trozos: string[]): Response {
+  const cuerpo = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const enc = new TextEncoder()
+      for (const t of trozos) controller.enqueue(enc.encode(t))
+      controller.close()
+    },
+  })
+  return new Response(cuerpo, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+const delta = (t: string) => `data: ${JSON.stringify({ choices: [{ delta: { content: t } }] })}\n\n`
+
+const fetchReal = globalThis.fetch
+
+async function juntarTexto(trozos: string[]): Promise<{ texto: string; empezo: boolean }> {
+  globalThis.fetch = (async () => streamFalso(trozos)) as typeof globalThis.fetch
+  let texto = ''
+  let empezo = false
+  try {
+    await conversar({
+      sistema: 'x',
+      mensajes: [{ role: 'user', content: 'hola' }],
+      alEmpezar: () => {
+        empezo = true
+      },
+      onTexto: (f) => {
+        texto += f
+      },
+    })
+  } finally {
+    globalThis.fetch = fetchReal
+  }
+  return { texto, empezo }
+}
+
+// Acá no sirve conEntorno: restaura el entorno en su `finally`, que corre
+// antes que cualquier await de adentro.
+const entornoPrevio = { ...process.env }
+delete process.env.ANTHROPIC_API_KEY
+process.env.OPENROUTER_API_KEY = 'sk-or-v1-prueba'
+process.env.IA_PROVEEDOR = 'openrouter'
+
+try {
+  const entero = await juntarTexto([delta('Hola'), delta(' equipo'), 'data: [DONE]\n\n'])
+  ok('junta los fragmentos en orden', entero.texto === 'Hola equipo', `"${entero.texto}"`)
+  ok('avisa que empezó antes del primer fragmento', entero.empezo)
+
+  // El mismo contenido, pero cortado en lugares hostiles: al medio de la
+  // palabra "data", al medio del JSON y al medio del separador.
+  const completo = delta('Hola') + delta(' equipo') + 'data: [DONE]\n\n'
+  const partido = await juntarTexto([
+    completo.slice(0, 7),
+    completo.slice(7, 31),
+    completo.slice(31, 60),
+    completo.slice(60),
+  ])
+  ok(
+    'sobrevive a que la red corte los eventos al medio',
+    partido.texto === 'Hola equipo',
+    `"${partido.texto}"`,
+  )
+
+  const conRuido = await juntarTexto([
+    ': OPENROUTER PROCESSING\n\n',
+    delta('Che'),
+    ': OPENROUTER PROCESSING\n\n',
+    delta(', mirá'),
+    'data: [DONE]\n\n',
+  ])
+  ok('ignora los comentarios de mantenimiento', conRuido.texto === 'Che, mirá', `"${conRuido.texto}"`)
+
+  const cortado = await juntarTexto([delta('Empieza'), delta(' y se corta')])
+  ok('sin [DONE] igual entrega lo que llegó', cortado.texto === 'Empieza y se corta')
+} finally {
+  process.env = entornoPrevio
+}
+
+/* ------------------------------------------------------------------ */
 console.log(
   fallas === 0
-    ? '\nLa clave queda en el servidor y sólo la propuesta sale del municipio.\n'
+    ? '\nLas claves quedan en el servidor y sólo la propuesta sale del municipio.\n'
     : `\n${fallas} verificación(es) fallaron.\n`,
 )
 process.exit(fallas === 0 ? 0 : 1)

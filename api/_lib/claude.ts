@@ -12,7 +12,7 @@ import Anthropic from '@anthropic-ai/sdk'
  * en el entorno del servidor de Vercel.
  */
 
-export const MODELO = 'claude-opus-5'
+export const MODELO_ANTHROPIC = 'claude-opus-5'
 
 let cliente: Anthropic | null = null
 
@@ -27,8 +27,8 @@ export function getClaude(): Anthropic {
   return cliente
 }
 
-/** ¿Está configurada la integración? Permite degradar en vez de romper. */
-export function hayClave(): boolean {
+/** ¿Está configurada la cuenta de Anthropic? Ver también proveedor.ts. */
+export function hayClaveAnthropic(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY)
 }
 

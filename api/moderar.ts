@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getClaude, hayClave, ipDe, MODELO, permitir } from './_lib/claude'
+import { ipDe, permitir } from './_lib/claude'
+import { clasificar, hayAlgunProveedor } from './_lib/proveedor'
 
 /**
  * Moderación semántica de propuestas ciudadanas.
@@ -40,22 +41,22 @@ ACEPTÁ todo lo demás, y con criterio amplio. En particular:
 - Errores de ortografía, mayúsculas, informalidad y modismos tucumanos son normales. No son motivo de rechazo.
 - Una propuesta breve o poco desarrollada igual vale.
 
-Ante la duda, ACEPTÁ. Rechazar la propuesta legítima de un vecino es un daño peor que dejar pasar algo discutible: la persona se va del stand sintiendo que el municipio la censuró.`
+Ante la duda, ACEPTÁ. Rechazar la propuesta legítima de un vecino es un daño peor que dejar pasar algo discutible: la persona se va del stand sintiendo que el municipio la censuró.
+
+Respondé únicamente con el JSON pedido, sin texto alrededor.`
 
 interface Veredicto {
   publicar: boolean
   motivo: string
-  categoria:
-    | 'ok'
-    | 'insulto'
-    | 'ataque_personal'
-    | 'discriminacion'
-    | 'amenaza'
-    | 'datos_personales'
-    | 'propaganda'
-    | 'spam'
+  categoria: string
 }
 
+/*
+ * El esquema cumple las dos condiciones del modo estricto de OpenAI, que
+ * es el que usa OpenRouter: additionalProperties en false y todas las
+ * propiedades listadas en required. Si se agrega un campo, tiene que ir a
+ * los dos lados o la llamada falla.
+ */
 const ESQUEMA = {
   type: 'object' as const,
   properties: {
@@ -78,12 +79,16 @@ const ESQUEMA = {
     },
     motivo: {
       type: 'string',
-      description:
-        'Una oración breve para el equipo de moderación. En español rioplatense.',
+      description: 'Una oración breve para el equipo de moderación. En español rioplatense.',
     },
   },
   required: ['publicar', 'categoria', 'motivo'],
   additionalProperties: false,
+}
+
+/** Se deja pasar y decide el filtro determinista de la base. */
+function sinRevision(res: VercelResponse, motivo: string) {
+  return res.status(200).json({ publicar: true, categoria: 'ok', motivo, degradado: true })
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -91,28 +96,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Método no permitido' })
   }
 
-  /*
-   * Si la integración no está configurada, se responde "publicar" y la
-   * decisión queda en manos del filtro determinista. Bloquear todo porque
-   * falta una variable de entorno dejaría el stand sin poder recibir ideas.
-   */
-  if (!hayClave()) {
-    return res.status(200).json({
-      publicar: true,
-      categoria: 'ok',
-      motivo: 'Revisión automática no configurada.',
-      degradado: true,
-    })
+  // Si no hay ningún proveedor configurado, la decisión queda en manos del
+  // filtro de palabras. Bloquear todo porque falta una variable de entorno
+  // dejaría el stand sin poder recibir ideas.
+  if (!hayAlgunProveedor()) {
+    return sinRevision(res, 'Revisión automática no configurada.')
   }
 
   // El endpoint es público: lo llama el celular de cada vecino.
   if (!permitir(ipDe(req), 20)) {
-    return res.status(200).json({
-      publicar: true,
-      categoria: 'ok',
-      motivo: 'Demasiadas revisiones seguidas desde esta conexión.',
-      degradado: true,
-    })
+    return sinRevision(res, 'Demasiadas revisiones seguidas desde esta conexión.')
   }
 
   const { texto, nombre } = (req.body ?? {}) as { texto?: string; nombre?: string }
@@ -126,57 +119,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const firma = typeof nombre === 'string' ? nombre.trim().slice(0, 60) : ''
 
   try {
-    const claude = getClaude()
-
-    const respuesta = await claude.messages.create(
-      {
-        model: MODELO,
-        max_tokens: 512,
-        system: SISTEMA,
-        // Clasificación simple: no hace falta razonamiento profundo, y en el
-        // stand la latencia se siente — la persona está esperando de pie.
-        output_config: {
-          effort: 'low',
-          format: { type: 'json_schema', schema: ESQUEMA },
-        },
-        messages: [
-          {
-            role: 'user',
-            content: firma
-              ? `Propuesta: "${propuesta}"\nFirmada por: "${firma}"`
-              : `Propuesta: "${propuesta}"`,
-          },
-        ],
-      },
+    const { datos } = await clasificar({
+      sistema: SISTEMA,
+      usuario: firma
+        ? `Propuesta: "${propuesta}"\nFirmada por: "${firma}"`
+        : `Propuesta: "${propuesta}"`,
+      esquema: ESQUEMA,
+      nombreEsquema: 'veredicto_moderacion',
       // Un stand no puede esperar: si tarda más que esto, decide el filtro
       // determinista y la persona no se queda mirando la pantalla.
-      { timeout: 8_000 },
-    )
+      timeoutMs: 8_000,
+    })
 
-    const bloque = respuesta.content.find((b) => b.type === 'text')
-    const veredicto = JSON.parse(bloque && 'text' in bloque ? bloque.text : '{}') as Veredicto
+    const veredicto = datos as Partial<Veredicto>
 
     return res.status(200).json({
       publicar: veredicto.publicar !== false,
       categoria: veredicto.categoria ?? 'ok',
-      motivo: veredicto.motivo ?? '',
+      motivo: typeof veredicto.motivo === 'string' ? veredicto.motivo : '',
     })
   } catch (error) {
     /*
      * Falla abierta, a propósito.
      *
-     * Si la API no responde —red del predio, límite de tasa, timeout— la
-     * alternativa sería rechazar la propuesta, y eso deja al vecino sin poder
-     * participar por un problema que no es suyo. La propuesta sigue pasando
-     * por el filtro de palabras del servidor y por la cola de revisión del
-     * panel, así que no queda sin control.
+     * Si ningún proveedor responde —red del predio, límite de tasa, crédito
+     * agotado— la alternativa sería rechazar la propuesta, y eso deja al
+     * vecino sin poder participar por un problema que no es suyo. La
+     * propuesta sigue pasando por el filtro de palabras del servidor y por
+     * la cola de revisión del panel, así que no queda sin control.
      */
     console.error('[moderar] falló la revisión semántica:', error)
-    return res.status(200).json({
-      publicar: true,
-      categoria: 'ok',
-      motivo: 'No se pudo completar la revisión automática.',
-      degradado: true,
-    })
+    return sinRevision(res, 'No se pudo completar la revisión automática.')
   }
 }

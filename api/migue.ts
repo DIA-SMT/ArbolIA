@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getClaude, hayClave, ipDe, MODELO, permitir } from './_lib/claude'
+import { ipDe, permitir } from './_lib/claude'
+import { conversar, hayAlgunProveedor, type Mensaje } from './_lib/proveedor'
 import { esDelEquipo } from './_lib/sesion'
 
 /**
@@ -32,13 +33,8 @@ CÓMO HABLÁS
 CRITERIO
 - No inventes números. Si no tenés el dato en lo que te pasaron, decilo.
 - Distinguí lo que dice la muestra de lo que se puede concluir. Cuarenta propuestas de un stand no son una encuesta representativa de la ciudad, y conviene decirlo cuando alguien esté por sacar una conclusión más grande de lo que los datos aguantan.
-- Las propuestas traen a veces nombre y edad de quien las dejó. Son datos internos: usalos para el análisis agregado, nunca para señalar a una persona.
+- Las propuestas traen a veces el rango etario de quien las dejó. Son datos internos: usalos para el análisis agregado, nunca para señalar a una persona.
 - Si el equipo te pide algo que no corresponde —publicar datos personales, redactar algo partidario— decilo y ofrecé la alternativa.`
-
-interface Mensaje {
-  role: 'user' | 'assistant'
-  content: string
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -50,9 +46,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Necesitás iniciar sesión en el panel.' })
   }
 
-  if (!hayClave()) {
+  if (!hayAlgunProveedor()) {
     return res.status(503).json({
-      error: 'Migue no está configurado. Falta ANTHROPIC_API_KEY en el entorno del servidor.',
+      error:
+        'Migue no está configurado. Falta ANTHROPIC_API_KEY u OPENROUTER_API_KEY en el entorno del servidor.',
     })
   }
 
@@ -71,46 +68,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Sólo los últimos intercambios: una conversación larga del día entero no
   // aporta y multiplica el costo de cada respuesta.
-  const historia = mensajes.slice(-20).map((m) => ({
-    role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+  const historia: Mensaje[] = mensajes.slice(-20).map((m) => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
     content: String(m.content).slice(0, 8000),
   }))
 
   try {
-    const claude = getClaude()
-
-    // Cabeceras de streaming antes de cualquier escritura.
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-    res.setHeader('Cache-Control', 'no-cache, no-transform')
-    res.setHeader('Connection', 'keep-alive')
-    res.setHeader('X-Accel-Buffering', 'no')
-
-    const stream = claude.messages.stream({
-      model: MODELO,
-      max_tokens: 8000,
-      // El contexto va en un bloque aparte y ANTES de la conversación: es la
-      // parte estable del prompt, así que la caché lo aprovecha entre
-      // preguntas sucesivas sobre el mismo conjunto de propuestas.
-      system: contexto
-        ? [
-            { type: 'text' as const, text: SISTEMA },
-            {
-              type: 'text' as const,
-              text: `\n\nDATOS DE LA INSTALACIÓN EN ESTE MOMENTO:\n${contexto.slice(0, 60_000)}`,
-              cache_control: { type: 'ephemeral' as const },
-            },
-          ]
-        : SISTEMA,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'medium' },
-      messages: historia,
+    await conversar({
+      sistema: SISTEMA,
+      contexto: contexto?.slice(0, 60_000),
+      mensajes: historia,
+      // Las cabeceras se escriben recién cuando el proveedor empezó a
+      // responder. Hasta ese momento todavía se puede cambiar de proveedor
+      // y devolver un código de estado distinto.
+      alEmpezar: () => {
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-cache, no-transform')
+        res.setHeader('Connection', 'keep-alive')
+        res.setHeader('X-Accel-Buffering', 'no')
+      },
+      onTexto: (fragmento) => {
+        res.write(`data: ${JSON.stringify({ texto: fragmento })}\n\n`)
+      },
     })
-
-    stream.on('text', (fragmento) => {
-      res.write(`data: ${JSON.stringify({ texto: fragmento })}\n\n`)
-    })
-
-    await stream.finalMessage()
 
     res.write('data: [DONE]\n\n')
     return res.end()
@@ -120,9 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Si ya se empezó a transmitir no se puede cambiar el código de estado:
     // el error viaja por el mismo canal para que la interfaz pueda mostrarlo.
     if (res.headersSent) {
-      res.write(
-        `data: ${JSON.stringify({ error: 'Se cortó la respuesta. Probá de nuevo.' })}\n\n`,
-      )
+      res.write(`data: ${JSON.stringify({ error: 'Se cortó la respuesta. Probá de nuevo.' })}\n\n`)
       return res.end()
     }
     return res.status(500).json({ error: 'No pudimos consultar a Migue.' })
