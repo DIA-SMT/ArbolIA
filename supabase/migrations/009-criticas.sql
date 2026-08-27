@@ -243,6 +243,9 @@ declare
   antes_ideas      int;
   antes_propuestas int;
   antes_criticas   int;
+  ahora_ideas      int;
+  ahora_propuestas int;
+  ahora_criticas   int;
 begin
   -- Una sola versión del RPC, o PostgREST falla con PGRST203.
   select count(*) into sobrecargas
@@ -271,18 +274,32 @@ begin
       'Un dato interno quedó legible por el público. Revisá los grants de la 006.';
   end if;
 
-  /*
-   * Se comparan DIFERENCIAS, no valores absolutos.
-   *
-   * La base ya tiene ideas cargadas de las pruebas, y todas pasan a ser
-   * 'propuesta' por el default de arriba. Un chequeo del estilo
-   * "propuestas = 2" abortaría la migración entera por una fila previa que
-   * no tiene nada que ver.
-   */
+  -- La función tiene que exponer los dos desagregados nuevos.
   antes := arbolia_stats();
-  antes_ideas      := (antes ->> 'ideas')::int;
-  antes_propuestas := (antes ->> 'propuestas')::int;
-  antes_criticas   := (antes ->> 'criticas')::int;
+  if antes -> 'criticas' is null or antes -> 'propuestas' is null then
+    raise exception
+      'arbolia_stats no devuelve "propuestas" y "criticas". La pantalla no podría saber cuánto extender las raíces.';
+  end if;
+
+  /*
+   * Se cuentan filas directamente, no a través de arbolia_stats.
+   *
+   * La función es STABLE, y aunque dentro de un bloque plpgsql cada
+   * sentencia ve lo que hicieron las anteriores, no quiero que una
+   * migración de producción dependa de esa sutileza: si el snapshot no
+   * fuera el esperado, la diferencia daría cero y esto abortaría todo por
+   * un motivo que no tiene nada que ver con lo que estamos verificando.
+   *
+   * Y se comparan DIFERENCIAS, no valores absolutos: la base ya tiene
+   * ideas cargadas de las pruebas y todas pasan a ser 'propuesta' por el
+   * default de arriba.
+   */
+  select count(*) filter (where true),
+         count(*) filter (where tipo = 'propuesta'),
+         count(*) filter (where tipo = 'critica')
+    into antes_ideas, antes_propuestas, antes_criticas
+  from public.ideas
+  where status = 'visible' and archived_at is null;
 
   -- Una propuesta y una crítica, por el mismo camino que usa el celular.
   perform public.arbolia_submit_idea(
@@ -303,21 +320,35 @@ begin
     raise exception 'Un tipo desconocido no cayó a "propuesta" como corresponde.';
   end if;
 
-  despues := arbolia_stats();
+  select count(*) filter (where true),
+         count(*) filter (where tipo = 'propuesta'),
+         count(*) filter (where tipo = 'critica')
+    into ahora_ideas, ahora_propuestas, ahora_criticas
+  from public.ideas
+  where status = 'visible' and archived_at is null;
 
-  if (despues ->> 'criticas')::int <> antes_criticas + 1 then
+  if ahora_criticas <> antes_criticas + 1 then
     raise exception
-      'arbolia_stats no contó la crítica: pasó de % a %.',
-      antes_criticas, despues ->> 'criticas';
+      'La crítica no se guardó como crítica: las críticas pasaron de % a %.',
+      antes_criticas, ahora_criticas;
   end if;
-  if (despues ->> 'propuestas')::int <> antes_propuestas + 2 then
+  if ahora_propuestas <> antes_propuestas + 2 then
     raise exception
-      'arbolia_stats no contó las propuestas: pasó de % a %.',
-      antes_propuestas, despues ->> 'propuestas';
+      'Las propuestas pasaron de % a % y se esperaban dos más.',
+      antes_propuestas, ahora_propuestas;
   end if;
-  if (despues ->> 'ideas')::int <> antes_ideas + 3 then
+  if ahora_ideas <> antes_ideas + 3 then
     raise exception
-      'La crítica no cuenta para el total. Tiene que contar: participó igual que cualquier otra.';
+      'La crítica no cuenta para el total. Tiene que contar: participó igual que cualquier otra. Puede que el filtro de contenido haya marcado alguna fila de prueba.';
+  end if;
+
+  -- Y lo que informa la función tiene que coincidir con lo que hay.
+  despues := arbolia_stats();
+  if (despues ->> 'criticas')::int <> ahora_criticas
+     or (despues ->> 'propuestas')::int <> ahora_propuestas then
+    raise exception
+      'arbolia_stats informa % críticas y % propuestas, pero en la tabla hay % y %.',
+      despues ->> 'criticas', despues ->> 'propuestas', ahora_criticas, ahora_propuestas;
   end if;
 
   delete from public.ideas where device_id like 'chk009-%';
