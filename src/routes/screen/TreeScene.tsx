@@ -21,6 +21,8 @@ interface Props {
   criticaCayendo: Idea | null
   /** Sube de a uno cuando una crítica toca la tierra. */
   pulsoRaices: number
+  /** Fondo de la escena. El árbol conserva sus colores en los dos. */
+  tema: 'claro' | 'oscuro'
   growth: GrowthProfile
   celebration: number | null
   quality: 'alta' | 'media'
@@ -36,6 +38,7 @@ export default function TreeScene({
   activeIdea,
   criticaCayendo,
   pulsoRaices,
+  tema,
   growth,
   celebration,
   quality,
@@ -56,9 +59,22 @@ export default function TreeScene({
 
   return (
     <>
-      <color attach="background" args={['#050a12']} />
-      {/* Niebla lejana y suave: da profundidad sin apagar la copa. */}
-      <fog attach="fog" args={['#071220', 9.5, 21]} />
+      {/*
+        El fondo sigue al tema; el árbol no.
+
+        Sus colores vienen de las ocho áreas y del verde institucional: son
+        identidad, no decoración, y cambiarlos sería otra instalación. Lo
+        que cambia es sobre qué está.
+
+        En claro la niebla se acerca un poco: sobre fondo oscuro difumina
+        la profundidad, sobre fondo claro tiene que dibujar el contorno o
+        las ramas del fondo se pierden contra el blanco.
+      */}
+      <color attach="background" args={[tema === 'claro' ? '#f7fafd' : '#050a12']} />
+      <fog
+        attach="fog"
+        args={tema === 'claro' ? ['#e9f1f9', 8.5, 19] : ['#071220', 9.5, 21]}
+      />
 
       <CameraRig celebration={celebration} />
 

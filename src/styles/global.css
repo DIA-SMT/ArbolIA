@@ -61,7 +61,212 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
+  /* ---------------------------------------------------------------
+     Superficies y realces.
+
+     Existen como tokens porque antes estaban escritos a mano en cada
+     hoja —un centenar de rgba() sueltos— y con dos temas eso no se
+     puede sostener: cada valor literal es un lugar donde el modo claro
+     se rompe en silencio.
+     --------------------------------------------------------------- */
+  --panel-alto: rgba(10, 20, 34, 0.3);
+  --panel-bajo: rgba(6, 12, 22, 0.16);
+  --panel-alto-hover: rgba(14, 28, 44, 0.44);
+  --panel-bajo-hover: rgba(8, 16, 28, 0.26);
+  --panel-solido: rgba(12, 24, 38, 0.7);
+
+  /* Las etiquetas sobre la escena 3D: más opacas, tienen que leerse
+     sobre copa, tronco y tierra. */
+  --tarjeta-alto: rgba(6, 14, 24, 0.82);
+  --tarjeta-bajo: rgba(5, 10, 18, 0.68);
+  --tarjeta-alto-fuerte: rgba(6, 14, 24, 0.9);
+  --tarjeta-bajo-fuerte: rgba(5, 10, 18, 0.78);
+
+  --sombra-tarjeta: 0 8px 26px rgba(0, 0, 0, 0.5);
+  --sombra-panel: 0 18px 60px rgba(0, 0, 0, 0.5);
+  --sombra-fuerte: 0 32px 100px rgba(0, 0, 0, 0.7);
+
+  /* El reflejo que cruza las tarjetas al pasar el mouse. */
+  --brillo-suave: rgba(190, 235, 255, 0.07);
+  --brillo-medio: rgba(220, 250, 255, 0.16);
+
+  --pista: rgba(60, 180, 240, 0.12);
+  --scrollbar: rgba(120, 190, 220, 0.18);
+  --scrollbar-hover: rgba(120, 190, 220, 0.32);
+
+  /* ---------------------------------------------------------------
+     Superficies y textos propios de cada pantalla.
+
+     Salieron de reemplazar los colores literales que estaban escritos
+     a mano en las hojas de cada ruta. Cada valor de acá es EXACTAMENTE
+     el que ya había: el modo oscuro no cambió un píxel. Lo que se ganó
+     es que ahora existe un lugar donde el modo claro puede redefinirlos.
+     --------------------------------------------------------------- */
+  --mob-fondo-alto: #0d2030;
+  --mob-fondo-bajo: #05090f;
+  --mob-kicker: rgba(190, 215, 235, 0.35);
+  --mob-placeholder: rgba(190, 215, 235, 0.34);
+  --mob-campo: rgba(10, 20, 32, 0.72);
+  --mob-chip-fondo: rgba(10, 20, 32, 0.6);
+  --mob-error-texto: #fecdd3;
+  --mob-titulo-brillo: #6ee7a0;
+  --adm-fondo-alto: #0c1a28;
+  --adm-fondo-bajo: #05090f;
+  --adm-panel-fuerte: rgba(10, 20, 32, 0.72);
+  --adm-caja: rgba(10, 20, 32, 0.6);
+  --adm-fila: rgba(10, 20, 32, 0.56);
+  --adm-campo: rgba(6, 12, 20, 0.8);
+  --adm-campo-suave: rgba(6, 12, 20, 0.72);
+  --adm-caja-accent: rgba(14, 36, 44, 0.6);
+  --adm-caja-warn: rgba(44, 34, 10, 0.44);
+  --adm-fila-flag: rgba(38, 30, 10, 0.42);
+  --adm-grafico: #0c1826;
+  --adm-tip: rgba(6, 14, 24, 0.96);
+  --sombra-tip: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --adm-burbuja: rgba(12, 24, 38, 0.8);
+  --grafico-tick: rgba(184, 208, 230, 0.5);
+  --grafico-cap: rgba(184, 208, 230, 0.55);
+  --grafico-linea: rgba(60, 180, 240, 0.06);
+  --texto-ok: #a7e8c4;
+  --texto-warn: #f7e98a;
+  --texto-warn-suave: #e8b464;
+  --texto-danger: #fecdd3;
+  --texto-danger-fuerte: #fff1f2;
+  --line-tenue: rgba(60, 180, 240, 0.07);
+  --panel-hero-alto: rgba(16, 42, 50, 0.34);
+  --panel-hero-bajo: rgba(8, 20, 28, 0.18);
+  --texto-hero: rgba(134, 231, 175, 0.8);
+  --panel-qr-alto: rgba(16, 30, 48, 0.72);
+  --panel-qr-bajo: rgba(8, 16, 28, 0.56);
+  --velo-centro: rgba(8, 30, 40, 0.42);
+  --velo-borde: rgba(4, 7, 12, 0.82);
+  --celebracion-alto: rgba(12, 32, 44, 0.86);
+  --celebracion-bajo: rgba(6, 14, 24, 0.78);
+  --titulo-brillo: #ffffff;
+  --verde-tenue: #a7e8c4;
+  --amarillo-tenue: #f7e98a;
+  --estado-fondo: rgba(8, 16, 28, 0.72);
+
   color-scheme: dark;
+}
+
+/* =====================================================================
+   MODO CLARO
+
+   No es un tema inventado: es la paleta institucional en su soporte
+   original. El manual del municipio está definido para papel —tinta
+   #10233d, texto #33414f, líneas #e3e8ef sobre blanco— y lo que hay
+   arriba es la traducción de eso a un LED en un pabellón a oscuras.
+
+   Los hex de marca —azul, celeste, amarillo, verde— no se tocan en
+   ninguno de los dos: son identidad, no decoración. Lo que cambia son
+   los roles de valor.
+   ===================================================================== */
+
+:root[data-tema='claro'] {
+  /* Blanco con la temperatura del azul institucional, no blanco puro:
+     en una pantalla grande el blanco puro cansa y aplana los acentos. */
+  --bg-void: #f7fafd;
+  --bg-deep: #eef4fa;
+  --bg-panel: rgba(255, 255, 255, 0.72);
+  --bg-panel-solid: #ffffff;
+
+  /* Del manual, tal cual. */
+  --line-soft: #e3e8ef;
+  --line-mid: rgba(18, 111, 245, 0.28);
+
+  --text-hi: #10233d;
+  --text-mid: #33414f;
+  --text-low: rgba(51, 65, 79, 0.62);
+
+  /* El verde claro pierde contra el blanco: sobre papel el acento es el
+     verde pleno. El resto de la marca se mantiene. */
+  --accent: var(--smt-verde);
+  --accent-warm: var(--smt-verde);
+  --accent-blue: var(--smt-azul);
+  --accent-glow: rgba(16, 185, 129, 0.28);
+
+  /*
+   * Los estados bajan de brillo.
+   *
+   * El ámbar y el rojo de la paleta oscura están calibrados para brillar
+   * sobre negro; sobre blanco vibran y pierden legibilidad justo donde
+   * más importa, que es la cola de moderación del panel.
+   */
+  --warn: #b8860b;
+  --danger: #c72c2c;
+
+  --panel-alto: rgba(255, 255, 255, 0.86);
+  --panel-bajo: rgba(247, 250, 253, 0.72);
+  --panel-alto-hover: #ffffff;
+  --panel-bajo-hover: rgba(255, 255, 255, 0.9);
+  --panel-solido: rgba(255, 255, 255, 0.94);
+
+  --tarjeta-alto: rgba(255, 255, 255, 0.94);
+  --tarjeta-bajo: rgba(244, 249, 254, 0.9);
+  --tarjeta-alto-fuerte: rgba(255, 255, 255, 0.97);
+  --tarjeta-bajo-fuerte: rgba(244, 249, 254, 0.95);
+
+  /* Sombras mucho más suaves: en claro una sombra fuerte se lee como
+     suciedad, no como profundidad. */
+  --sombra-tarjeta: 0 6px 18px rgba(16, 35, 61, 0.1);
+  --sombra-panel: 0 14px 40px rgba(16, 35, 61, 0.12);
+  --sombra-fuerte: 0 24px 70px rgba(16, 35, 61, 0.18);
+
+  --brillo-suave: rgba(18, 111, 245, 0.04);
+  --brillo-medio: rgba(18, 111, 245, 0.09);
+
+  --pista: rgba(18, 111, 245, 0.12);
+  --scrollbar: rgba(51, 65, 79, 0.22);
+  --scrollbar-hover: rgba(51, 65, 79, 0.38);
+
+  /* Las mismas superficies, sobre papel. */
+  --mob-fondo-alto: #ffffff;
+  --mob-fondo-bajo: #eef4fa;
+  --mob-kicker: rgba(51, 65, 79, 0.62);
+  --mob-placeholder: rgba(51, 65, 79, 0.55);
+  --mob-campo: #ffffff;
+  --mob-chip-fondo: rgba(255, 255, 255, 0.86);
+  --mob-error-texto: #b91c1c;
+  --mob-titulo-brillo: #0e8a5f;
+  --adm-fondo-alto: #ffffff;
+  --adm-fondo-bajo: #eef4fa;
+  --adm-panel-fuerte: rgba(255, 255, 255, 0.86);
+  --adm-caja: rgba(255, 255, 255, 0.86);
+  --adm-fila: rgba(255, 255, 255, 0.9);
+  --adm-campo: #ffffff;
+  --adm-campo-suave: rgba(255, 255, 255, 0.9);
+  --adm-caja-accent: rgba(16, 185, 129, 0.08);
+  --adm-caja-warn: rgba(242, 217, 28, 0.16);
+  --adm-fila-flag: rgba(242, 217, 28, 0.14);
+  --adm-grafico: #ffffff;
+  --adm-tip: rgba(255, 255, 255, 0.97);
+  --sombra-tip: 0 8px 24px rgba(16, 35, 61, 0.14);
+  --adm-burbuja: rgba(244, 249, 254, 0.92);
+  --grafico-tick: rgba(51, 65, 79, 0.7);
+  --grafico-cap: rgba(51, 65, 79, 0.72);
+  --grafico-linea: rgba(16, 35, 61, 0.08);
+  --texto-ok: #047857;
+  --texto-warn: #8a6d0b;
+  --texto-warn-suave: #a1620a;
+  --texto-danger: #b91c1c;
+  --texto-danger-fuerte: #7f1d1d;
+  --line-tenue: rgba(18, 111, 245, 0.12);
+  --panel-hero-alto: rgba(232, 250, 242, 0.9);
+  --panel-hero-bajo: rgba(245, 252, 249, 0.75);
+  --texto-hero: #0b7a5b;
+  --panel-qr-alto: rgba(255, 255, 255, 0.92);
+  --panel-qr-bajo: rgba(244, 249, 254, 0.86);
+  --velo-centro: rgba(247, 250, 253, 0.55);
+  --velo-borde: rgba(238, 244, 250, 0.9);
+  --celebracion-alto: rgba(255, 255, 255, 0.95);
+  --celebracion-bajo: rgba(244, 249, 254, 0.9);
+  --titulo-brillo: #10233d;
+  --verde-tenue: #10b981;
+  --amarillo-tenue: #b8860b;
+  --estado-fondo: rgba(255, 255, 255, 0.9);
+
+  color-scheme: light;
 }
 
 *,

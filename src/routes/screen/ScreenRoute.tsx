@@ -6,6 +6,7 @@ import { DiagnosticsHud, type DiagInfo } from './Diagnostics'
 import ScreenOverlay from './overlay/ScreenOverlay'
 import { useLiveTree } from '../../hooks/useLiveTree'
 import { getGrowthProfile } from '../../lib/growth'
+import { useTema } from '../../lib/tema'
 
 /** Cuántas ideas recientes se listan en la columna derecha. */
 const RECENT_COUNT = 5
@@ -66,7 +67,16 @@ export default function ScreenRoute() {
     }
   }, [])
 
-  useScreenShortcuts(tree.toggleSilencio)
+  /*
+   * En la pantalla del stand el tema arranca en oscuro, no en el del
+   * sistema. El árbol está hecho de resplandor aditivo sobre fondo
+   * profundo: si la PC del predio tuviera el sistema en claro, la
+   * instalación abriría con el peor de sus dos aspectos sin que nadie lo
+   * haya decidido.
+   */
+  const [tema, alternarTema] = useTema('oscuro')
+
+  useScreenShortcuts(tree.toggleSilencio, alternarTema)
   useWebGLWatchdog()
 
   return (
@@ -95,6 +105,7 @@ export default function ScreenRoute() {
           activeIdea={tree.activeIdea}
           criticaCayendo={tree.criticaCayendo}
           pulsoRaices={tree.pulsoRaices}
+          tema={tema}
           growth={growth}
           celebration={tree.celebration}
           quality={quality}
@@ -184,14 +195,24 @@ function PerformanceGuard({ onDowngrade }: { onDowngrade: () => void }) {
  *           se vuelva a apretar. Es el botón de pánico: si se cuela algo
  *           indebido, saca el texto de la vista mientras se lo retira desde
  *           el panel, sin frenar la instalación ni dejar la pantalla negra.
+ *   Ctrl+L  alterna fondo claro y oscuro
  *   F       pantalla completa
  */
-function useScreenShortcuts(toggleSilencio: () => void) {
+function useScreenShortcuts(toggleSilencio: () => void, alternarTema: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key.toLowerCase() === 'h') {
         e.preventDefault()
         toggleSilencio()
+        return
+      }
+
+      // Ctrl+L: fondo claro / oscuro. Va por teclado y no por un botón
+      // porque esto se proyecta: cualquier control visible es ruido sobre
+      // la imagen que ve el público.
+      if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault()
+        alternarTema()
         return
       }
 
@@ -207,7 +228,7 @@ function useScreenShortcuts(toggleSilencio: () => void) {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleSilencio])
+  }, [toggleSilencio, alternarTema])
 }
 
 /**

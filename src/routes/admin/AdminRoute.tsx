@@ -18,6 +18,8 @@ import MiguePanel from './MiguePanel'
 import { GOAL_FALLBACK } from '../../lib/config'
 import { CATEGORIES, getCategory } from '../../lib/categories'
 import type { CategorySlug, Idea, IdeaStatus, Stats } from '../../lib/types'
+import BotonTema from '../../components/BotonTema'
+import { useTema } from '../../lib/tema'
 import './admin.css'
 
 const REFRESH_MS = 45_000
@@ -143,6 +145,8 @@ function LoginPanel() {
 // ---------------------------------------------------------------------
 
 function Dashboard() {
+  // El panel es donde el equipo pasa horas, casi siempre de día.
+  const [tema, alternarTema] = useTema()
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [category, setCategory] = useState<CategoryFilter>('all')
@@ -250,6 +254,7 @@ function Dashboard() {
         </div>
 
         <div className="adm__bar-actions">
+          <BotonTema tema={tema} onAlternar={alternarTema} />
           <button className="btn btn--ghost" onClick={() => void load()}>
             Actualizar
           </button>

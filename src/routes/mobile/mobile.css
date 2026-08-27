@@ -11,7 +11,11 @@
   flex-direction: column;
   padding: max(1.4rem, env(safe-area-inset-top)) 1.25rem
     max(1.4rem, env(safe-area-inset-bottom));
-  background: radial-gradient(circle at 50% -12%, #0d2030 0%, #05090f 58%);
+  background: radial-gradient(
+    circle at 50% -12%,
+    var(--mob-fondo-alto, #0d2030) 0%,
+    var(--mob-fondo-bajo, #05090f) 58%
+  );
   overflow-x: hidden;
 }
 
@@ -113,7 +117,7 @@
   font-size: 0.62rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(190, 215, 235, 0.35);
+  color: var(--mob-kicker, rgba(190, 215, 235, 0.35));
 }
 
 /* ----------------------------------------------------------------- Cuerpo */
@@ -127,7 +131,7 @@
 }
 
 .mob__title span {
-  background: linear-gradient(120deg, var(--pick), #6ee7a0);
+  background: linear-gradient(120deg, var(--pick), var(--mob-titulo-brillo, #6ee7a0));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -151,7 +155,7 @@
   padding: 1rem 3.1rem 1rem 1rem;
   border-radius: 16px;
   border: 1px solid var(--line-mid);
-  background: rgba(10, 20, 32, 0.72);
+  background: var(--mob-campo, rgba(10, 20, 32, 0.72));
   /* 16px reales: menos que eso y iOS hace zoom al enfocar. */
   font-size: 1rem;
   line-height: 1.45;
@@ -162,7 +166,7 @@
 }
 
 .field__input::placeholder {
-  color: rgba(190, 215, 235, 0.34);
+  color: var(--mob-placeholder, rgba(190, 215, 235, 0.34));
 }
 
 .field__input:focus {
@@ -193,11 +197,11 @@
   margin: -0.4rem 0 0;
   padding: 0.6rem 0.85rem;
   border-radius: 10px;
-  border: 1px solid rgba(239, 68, 68, 0.34);
-  background: rgba(239, 68, 68, 0.09);
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
   font-size: 0.85rem;
   line-height: 1.35;
-  color: #fecdd3;
+  color: var(--mob-error-texto, #fecdd3);
 }
 
 /* ------------------------------------------------------------ Categorías */
@@ -231,7 +235,7 @@
   padding: 0.65rem 0.7rem;
   border-radius: 12px;
   border: 1px solid var(--line-soft);
-  background: rgba(10, 20, 32, 0.6);
+  background: var(--mob-chip-fondo, rgba(10, 20, 32, 0.6));
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--text-mid);
@@ -249,7 +253,11 @@
 
 .chip--on {
   border-color: color-mix(in srgb, var(--chip) 66%, transparent);
-  background: color-mix(in srgb, var(--chip) 14%, rgba(10, 20, 32, 0.6));
+  background: color-mix(
+    in srgb,
+    var(--chip) 14%,
+    var(--mob-chip-fondo, rgba(10, 20, 32, 0.6))
+  );
   color: var(--text-hi);
   box-shadow: 0 0 20px color-mix(in srgb, var(--chip) 22%, transparent);
 }
@@ -274,7 +282,7 @@
   min-height: 56px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(120deg, var(--pick) 0%, #25d366 100%);
+  background: linear-gradient(120deg, var(--pick) 0%, var(--smt-verde-claro) 100%);
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 800;
@@ -479,7 +487,7 @@
   padding: 0.8rem 0.9rem;
   border-radius: 12px;
   border: 1px solid var(--line-mid);
-  background: rgba(10, 20, 32, 0.72);
+  background: var(--mob-campo, rgba(10, 20, 32, 0.72));
   /* 16px reales: menos que eso y iOS hace zoom al enfocar. */
   font-size: 1rem;
   color: var(--text-hi);
@@ -487,7 +495,7 @@
 }
 
 .nombre__input::placeholder {
-  color: rgba(190, 215, 235, 0.34);
+  color: var(--mob-placeholder, rgba(190, 215, 235, 0.34));
 }
 
 .nombre__input:focus {

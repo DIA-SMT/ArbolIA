@@ -1,0 +1,56 @@
+/* =====================================================================
+   Botón de fondo claro / oscuro.
+
+   Discreto a propósito: es una preferencia, no una acción del flujo. En
+   el celular compite con "Enviar" y en el panel con "Publicar" y
+   "Retirar"; si pesara lo mismo, distraería de lo que la persona vino a
+   hacer.
+   ===================================================================== */
+
+.tema {
+  flex: none;
+  /* Los encabezados donde vive alinean por línea de base, que en un botón
+     redondo deja el ícono flotando. */
+  align-self: center;
+  width: 2.1em;
+  height: 2.1em;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-mid);
+  background: var(--panel-solido);
+  color: var(--text-mid);
+  font-size: 1rem;
+  line-height: 1;
+  transition:
+    border-color 200ms var(--ease-out),
+    color 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+
+.tema:hover {
+  border-color: var(--accent);
+  color: var(--text-hi);
+  transform: translateY(-1px);
+}
+
+.tema:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tema__icono {
+  display: block;
+  /* El sol y la luna de la fuente del sistema no comparten altura óptica:
+     sin esto uno queda flotando y el otro pegado abajo. */
+  transform: translateY(0.02em);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tema {
+    transition: none;
+  }
+  .tema:hover {
+    transform: none;
+  }
+}

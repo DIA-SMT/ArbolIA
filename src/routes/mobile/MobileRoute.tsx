@@ -6,6 +6,8 @@ import { revisarPropuesta } from '../../lib/ia'
 import { getDeviceId, rememberSentIdea } from '../../lib/device'
 import { fetchStats, submitIdea, SubmitError } from '../../lib/api'
 import { AGE_RANGES, type AgeRange, type CategorySlug } from '../../lib/types'
+import BotonTema from '../../components/BotonTema'
+import { useTema } from '../../lib/tema'
 import './mobile.css'
 
 type Phase = 'form' | 'sending' | 'done' | 'review'
@@ -36,6 +38,10 @@ export default function MobileRoute() {
    * que no existe y se iría pensando que no entró.
    */
   const [tipoEnviado, setTipoEnviado] = useState<'propuesta' | 'critica'>('propuesta')
+
+  // El celular sí sigue al sistema: es lo que la persona espera de
+  // cualquier otra app que abra, y muchos van a entrar con el sol encima.
+  const [tema, alternarTema] = useTema()
 
   const deviceId = useMemo(() => getDeviceId(), [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -161,6 +167,7 @@ export default function MobileRoute() {
           San Miguel de Tucumán
         </p>
         <p className="mob__kicker">Árbol Virtual de Ideas</p>
+        <BotonTema tema={tema} onAlternar={alternarTema} />
       </header>
 
       {/*

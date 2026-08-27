@@ -182,7 +182,7 @@ console.log('\nCOLISIÓN DE ETIQUETAS')
       const ruta = join(dir, nombre)
       if (statSync(ruta).isDirectory()) recorrer(ruta)
       else if (nombre.endsWith('.css')) hojas.push(ruta)
-      else if (/.tsx?$/.test(nombre)) fuentes.push(readFileSync(ruta, 'utf8'))
+      else if (/\.tsx?$/.test(nombre)) fuentes.push(readFileSync(ruta, 'utf8'))
     }
   }
   recorrer('src')
@@ -194,6 +194,51 @@ console.log('\nCOLISIÓN DE ETIQUETAS')
     'ninguna hoja de estilo quedó sin importar',
     huerfanas.length === 0,
     huerfanas.length ? huerfanas.join(', ') : `${hojas.length} revisadas`,
+  )
+}
+
+// --- El modo claro no puede quedar a medias ---------------------------
+{
+  /*
+   * Cada token de color definido en :root tiene que tener su valor en
+   * [data-tema='claro'], salvo los hex de marca —que son identidad y se
+   * comparten a propósito— y los que sólo referencian a otro token.
+   *
+   * Sin esto, agregar un token y olvidarse del claro no falla: queda un
+   * panel oscuro sobre fondo blanco y nadie se entera hasta verlo.
+   */
+  const css = readFileSync('src/styles/global.css', 'utf8')
+
+  const bloque = (selector: string) => {
+    const desde = css.indexOf(selector)
+    if (desde < 0) return ''
+    const abre = css.indexOf('{', desde)
+    const cierra = css.indexOf('\n}', abre)
+    return css.slice(abre, cierra)
+  }
+
+  const tokensDe = (texto: string) =>
+    [...texto.matchAll(/^\s+(--[a-z0-9-]+):\s*([^;]+);/gm)].map((m) => ({
+      nombre: m[1],
+      valor: m[2].trim(),
+    }))
+
+  const oscuros = tokensDe(bloque(':root {'))
+  const claros = new Set(tokensDe(bloque(":root[data-tema='claro']")).map((t) => t.nombre))
+
+  const esColor = (v: string) => /^#|^rgba?\(|^color-mix|^hsl/.test(v)
+  const deMarca = (n: string) => n.startsWith('--smt-')
+  const alias = (v: string) => v.startsWith('var(')
+
+  const faltantes = oscuros
+    .filter((t) => esColor(t.valor) && !deMarca(t.nombre) && !alias(t.valor))
+    .filter((t) => !claros.has(t.nombre))
+    .map((t) => t.nombre)
+
+  check(
+    'el modo claro redefine todos los colores del oscuro',
+    faltantes.length === 0,
+    faltantes.length ? `faltan: ${faltantes.join(', ')}` : `${claros.size} tokens redefinidos`,
   )
 }
 
