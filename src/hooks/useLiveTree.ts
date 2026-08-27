@@ -112,6 +112,14 @@ export function useLiveTree(): LiveTree {
   const retiradasRef = useRef<Set<string>>(new Set())
   /** Último evento de moderación procesado, para el respaldo por intervalos. */
   const ultimoEventoRef = useRef(0)
+  /**
+   * La carga inicial ya terminó.
+   *
+   * El ciclo de respaldo no puede correr antes: la marca de agua todavía
+   * está en 1970, así que traería la expo entera y la encolaría para
+   * plantar — encima de lo que la carga inicial acaba de poner.
+   */
+  const cargaListaRef = useRef(false)
   const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([])
 
   const clearTimers = () => {
@@ -125,10 +133,29 @@ export function useLiveTree(): LiveTree {
     return t
   }
 
+  /**
+   * Agrega sin repetir.
+   *
+   * El array de ideas NO puede contener dos veces el mismo id: React usa
+   * el id como clave, y el slot de cada hoja se calcula contando cuántas
+   * hay ya de esa categoría. Una idea duplicada planta dos hojas encima y
+   * corre de lugar a todas las que vienen después.
+   *
+   * Es una red, no la solución: la causa se arregla más abajo, en el ciclo
+   * de respaldo. Pero hay varios caminos que escriben en este array —carga
+   * inicial, cola de animación, ráfaga, moderación, respaldo— y ninguno
+   * puede permitirse romper esa invariante.
+   */
+  const agregarSinRepetir = (prev: Idea[], nuevas: Idea[]): Idea[] => {
+    const presentes = new Set(prev.map((i) => i.id))
+    const faltantes = nuevas.filter((i) => !presentes.has(i.id))
+    return faltantes.length === 0 ? prev : [...prev, ...faltantes]
+  }
+
   /** Integra una hoja al arbol sin animacion (carga inicial o rafaga). */
   const plantSilently = useCallback((batch: Idea[]) => {
     if (batch.length === 0) return
-    setIdeas((prev) => [...prev, ...batch])
+    setIdeas((prev) => agregarSinRepetir(prev, batch))
   }, [])
 
   // -------------------------------------------------------------------
@@ -183,7 +210,7 @@ export function useLiveTree(): LiveTree {
        * porque el temporizador ya la tenía capturada.
        */
       if (!retiradasRef.current.has(next.id)) {
-        setIdeas((prev) => [...prev, next])
+        setIdeas((prev) => agregarSinRepetir(prev, [next]))
         // Tocó la tierra: las raíces se fortalecen.
         if (esCritica) setPulsoRaices((n) => n + 1)
       }
@@ -368,6 +395,7 @@ export function useLiveTree(): LiveTree {
         })
         setIdeas(history)
         setStats(freshStats)
+        cargaListaRef.current = true
         milestonesFor(metaActual ?? GOAL_FALLBACK)
           .filter((m) => freshStats.ideas >= m)
           .forEach((m) => milestoneReachedRef.current.add(m))
@@ -375,6 +403,10 @@ export function useLiveTree(): LiveTree {
       } catch (err) {
         if (!cancelled) {
           setLastError(err instanceof Error ? err.message : 'Error de carga inicial')
+          // El respaldo sí tiene que arrancar: si la carga inicial falló,
+          // es exactamente cuando hace falta. Trae desde 1970 una sola vez
+          // y a partir de ahí la marca de agua ya queda puesta.
+          cargaListaRef.current = true
         }
       }
     }
@@ -469,6 +501,10 @@ export function useLiveTree(): LiveTree {
      * retirada proyectada en el LED hasta que volviera la conexión.
      */
     const traer = () => {
+      // Antes de que termine la carga inicial no hay nada que respaldar, y
+      // sí mucho que romper.
+      if (!cargaListaRef.current) return
+
       fetchIdeasSince(lastSeenAtRef.current)
         .then((rows) => {
           if (rows.length > 0) enqueue(rows)
