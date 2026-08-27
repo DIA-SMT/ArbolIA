@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync } from 'node:fs'
+import { resolve, sep } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin, ViteDevServer } from 'vite'
 
@@ -28,6 +28,33 @@ export function apiLocal(): Plugin {
     configureServer(server: ViteDevServer) {
       cargarEntorno()
 
+      /*
+       * Lista blanca de endpoints, leída del disco al arrancar.
+       *
+       * Antes esto era una lista negra —rechazar lo que tuviera '/' o
+       * empezara con guion bajo— y tenía un agujero serio: en Windows la
+       * barra invertida también separa rutas, así que un nombre con ".."
+       * y barras invertidas pasaba el control y se concatenaba crudo en la
+       * ruta del módulo. Con eso se podía cargar y
+       * EJECUTAR cualquier .ts del disco, dentro o fuera del proyecto, en
+       * un proceso donde process.env ya tiene las claves de IA. Y el server
+       * de desarrollo escucha en toda la red (host: true): en el predio de
+       * la feria, cualquiera en el mismo wifi.
+       *
+       * Con lista blanca no hay cadena que inventar: o el nombre es uno de
+       * los archivos que existen, o es 404. De paso arregla dos
+       * divergencias con Vercel: la comparación es sensible a mayúsculas
+       * como en Linux, y un endpoint inexistente da 404 en vez de un 500
+       * con rutas internas del proyecto en el cuerpo.
+       */
+      const endpoints = new Set(
+        readdirSync(resolve(server.config.root, 'api'))
+          .filter((f) => /^[A-Za-z0-9-]+\.ts$/.test(f))
+          .map((f) => f.replace(/\.ts$/, '')),
+      )
+
+      const raizApi = resolve(server.config.root, 'api')
+
       server.middlewares.use(async (req, res, next) => {
         const url = req.url ?? ''
         if (!url.startsWith('/api/')) return next()
@@ -35,9 +62,11 @@ export function apiLocal(): Plugin {
         const ruta = url.split('?')[0].replace(/\/+$/, '')
         const nombre = ruta.slice('/api/'.length)
 
-        // Lo que Vercel ignora, acá tampoco se sirve: los ayudantes de
-        // api/_lib no son endpoints.
-        if (!nombre || nombre.startsWith('_') || nombre.includes('/')) {
+        // Sólo los endpoints que existen, con el nombre exacto. Los
+        // ayudantes de api/_lib no entran: no empiezan con guion bajo por
+        // casualidad, es la convención que Vercel también respeta.
+        const destino = resolve(raizApi, `${nombre}.ts`)
+        if (!endpoints.has(nombre) || !destino.startsWith(raizApi + sep)) {
           res.statusCode = 404
           res.end('Not found')
           return
@@ -115,6 +144,17 @@ async function adaptarPedido(req: IncomingMessage, url: string) {
   if (interrogante >= 0) {
     for (const [k, v] of new URLSearchParams(url.slice(interrogante + 1))) query[k] = v
   }
+
+  /*
+   * Vercel siempre inyecta x-forwarded-for. Acá no existe, así que ipDe()
+   * devolvía la misma cadena para todo el mundo y el limitador quedaba con
+   * un único cupo global: con cuatro o cinco celulares probando por el QR,
+   * a las 20 revisiones del minuto la clasificación se degradaba y ninguna
+   * crítica caía más. Se escribe siempre, no sólo si falta: en desarrollo
+   * el pedido llega directo del navegador y cualquiera podría elegirse el
+   * cubo mandándose su propia cabecera.
+   */
+  req.headers['x-forwarded-for'] = req.socket.remoteAddress ?? '127.0.0.1'
 
   const crudo = await leerCuerpo(req)
   let body: unknown = crudo
