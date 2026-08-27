@@ -10,7 +10,42 @@ import type { AgeRange, AgeStat, CategorySlug, Idea, IdeaStatus, Stats, TipoIdea
  * municipio, y desde la migración 006 el rol anónimo directamente no tiene
  * permiso de leerlos — pedirlos acá haría fallar la consulta.
  */
-const COLUMNAS_PUBLICAS = 'id, text, category, status, archived_at, created_at, tipo'
+const COLUMNAS_BASE = 'id, text, category, status, archived_at, created_at'
+
+/**
+ * Igual, más el tipo — hoja o raíz — que introduce la migración 009.
+ *
+ * Se degrada sola. PostgREST rechaza la consulta ENTERA con 42703 si le
+ * pedís una columna que no existe, así que pedir 'tipo' contra una base sin
+ * migrar no deja la pantalla sin una columna: la deja sin árbol. La primera
+ * vez que eso pasa se baja a las columnas de siempre y se sigue, tratando
+ * todo como propuesta, que es como se comportaba antes.
+ */
+let columnasPublicas = `${COLUMNAS_BASE}, tipo`
+
+function faltaColumnaTipo(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return error.code === '42703' || /column .*tipo.* does not exist/i.test(error.message ?? '')
+}
+
+/** Ejecuta una consulta pública y reintenta sin 'tipo' si la base no lo tiene. */
+async function conColumnasPublicas<T>(
+  ejecutar: (columnas: string) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+): Promise<T> {
+  let { data, error } = await ejecutar(columnasPublicas)
+
+  if (faltaColumnaTipo(error) && columnasPublicas !== COLUMNAS_BASE) {
+    console.warn(
+      '[arbolia] Falta ejecutar supabase/migrations/009-criticas.sql. ' +
+        'Hasta entonces toda idea se trata como propuesta.',
+    )
+    columnasPublicas = COLUMNAS_BASE
+    ;({ data, error } = await ejecutar(columnasPublicas))
+  }
+
+  if (error) throw error
+  return data as T
+}
 
 /** Cuantas ideas carga la pantalla al arrancar para reconstruir el arbol. */
 export const TREE_HISTORY_LIMIT = 900
@@ -74,32 +109,32 @@ export async function fetchStats(): Promise<Stats> {
  */
 export async function fetchTreeIdeas(limit = TREE_HISTORY_LIMIT): Promise<Idea[]> {
   const db = requirePublic()
-  const { data, error } = await db
-    .from('ideas')
-    .select(COLUMNAS_PUBLICAS)
-    .eq('status', 'visible')
-    .is('archived_at', null)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return ((data ?? []) as Idea[]).reverse()
+  const filas = await conColumnasPublicas<Idea[] | null>((columnas) =>
+    db
+      .from('ideas')
+      .select(columnas)
+      .eq('status', 'visible')
+      .is('archived_at', null)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  )
+  return (filas ?? []).reverse()
 }
 
 /** Ideas creadas despues de un instante dado: usado al reconectar. */
 export async function fetchIdeasSince(isoTimestamp: string): Promise<Idea[]> {
   const db = requirePublic()
-  const { data, error } = await db
-    .from('ideas')
-    .select(COLUMNAS_PUBLICAS)
-    .eq('status', 'visible')
-    .is('archived_at', null)
-    .gt('created_at', isoTimestamp)
-    .order('created_at', { ascending: true })
-    .limit(200)
-
-  if (error) throw error
-  return (data ?? []) as Idea[]
+  const filas = await conColumnasPublicas<Idea[] | null>((columnas) =>
+    db
+      .from('ideas')
+      .select(columnas)
+      .eq('status', 'visible')
+      .is('archived_at', null)
+      .gt('created_at', isoTimestamp)
+      .order('created_at', { ascending: true })
+      .limit(200),
+  )
+  return filas ?? []
 }
 
 export interface SubmitIdeaInput {
@@ -362,14 +397,13 @@ export async function fetchPorEdad(): Promise<AgeStat[]> {
  */
 export async function fetchIdeaById(id: string): Promise<Idea | null> {
   const db = requirePublic()
-  const { data, error } = await db
-    .from('ideas')
-    .select(COLUMNAS_PUBLICAS)
-    .eq('id', id)
-    .maybeSingle()
-
-  if (error || !data) return null
-  return data as Idea
+  try {
+    return await conColumnasPublicas<Idea | null>((columnas) =>
+      db.from('ideas').select(columnas).eq('id', id).maybeSingle(),
+    )
+  } catch {
+    return null
+  }
 }
 
 /**

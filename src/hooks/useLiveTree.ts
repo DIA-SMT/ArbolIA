@@ -350,6 +350,12 @@ export function useLiveTree(): LiveTree {
               status: fila.status as Idea['status'],
               archived_at: (fila.archived_at as string | null) ?? null,
               created_at: fila.created_at as string,
+              // Sin esto la MISMA fila se comporta distinto según por dónde
+              // llegue: por WebSocket vendría sin tipo y por el respaldo
+              // (fetchIdeasSince) con él. Una crítica brotaría como hoja
+              // salvo que justo se cayera la red — un bug que sólo aparece
+              // en el peor momento posible.
+              tipo: fila.tipo === 'critica' ? 'critica' : 'propuesta',
             },
           ])
         },
