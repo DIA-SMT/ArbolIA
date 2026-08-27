@@ -18,25 +18,43 @@ function check(label: string, ok: boolean, detalle = '') {
   console.log(`  ${marca}  ${label}${detalle ? ` — ${detalle}` : ''}`)
 }
 
-/** ¿Queda alguna superposición después de aplicar los desplazamientos? */
+/**
+ * ¿Queda alguna superposición real después de aplicar los desplazamientos?
+ *
+ * Se miran LOS DOS EJES. Dos etiquetas a la misma altura pero en extremos
+ * opuestos de la pantalla no se pisan, y exigirles separación vertical era
+ * justamente lo que hacía temblar todo cuando la cámara orbitaba.
+ */
 function superpuestas(cajas: CajaEtiqueta[], offsets: number[]): number {
   const finales = cajas
     .map((c, i) => ({
+      izq: c.x - c.ancho / 2,
+      der: c.x + c.ancho / 2,
       arriba: c.y - c.alto / 2 + offsets[i],
       abajo: c.y + c.alto / 2 + offsets[i],
       visible: c.visible,
     }))
     .filter((c) => c.visible)
-    .sort((a, b) => a.arriba - b.arriba)
 
   let choques = 0
-  for (let i = 1; i < finales.length; i++) {
-    if (finales[i].arriba < finales[i - 1].abajo) choques++
+  for (let i = 0; i < finales.length; i++) {
+    for (let j = i + 1; j < finales.length; j++) {
+      const a = finales[i]
+      const b = finales[j]
+      if (a.arriba < b.abajo && b.arriba < a.abajo && a.izq < b.der && b.izq < a.der) choques++
+    }
   }
   return choques
 }
 
-const caja = (y: number, alto = 60, visible = true): CajaEtiqueta => ({ y, alto, visible })
+/** Por defecto, todas en la misma columna: el caso que se veía mal. */
+const caja = (y: number, alto = 60, visible = true, x = 400, ancho = 150): CajaEtiqueta => ({
+  x,
+  ancho,
+  y,
+  alto,
+  visible,
+})
 
 console.log('\nCOLISIÓN DE ETIQUETAS')
 
@@ -100,6 +118,48 @@ console.log('\nCOLISIÓN DE ETIQUETAS')
   const cajas = [caja(200, 44), caja(206, 78), caja(210, 60)]
   const off = resolverColisiones(cajas, MARGEN)
   check('funciona con alturas distintas', superpuestas(cajas, off) === 0,
+    `desplazamientos: ${off.map((o) => Math.round(o)).join(', ')} px`)
+}
+
+// --- El eje horizontal, que antes se ignoraba -------------------------
+{
+  // Misma altura, extremos opuestos de la pantalla. No se pisan: no hay
+  // nada que mover. Antes se corrían entre sí, y como la cámara orbita el
+  // orden vertical cambiaba todo el tiempo y los textos temblaban.
+  const cajas = [caja(300, 60, true, 200), caja(300, 60, true, 1100)]
+  const off = resolverColisiones(cajas, MARGEN)
+  check('a la misma altura pero lejos, no las toca', off.every((o) => o === 0))
+}
+
+{
+  // Se rozan de costado: ahí sí hay que separarlas.
+  const cajas = [caja(300, 60, true, 400, 150), caja(320, 60, true, 480, 150)]
+  const off = resolverColisiones(cajas, MARGEN)
+  check('si se rozan de costado, sí las separa', superpuestas(cajas, off) === 0,
+    `desplazamientos: ${off.map((o) => Math.round(o)).join(', ')} px`)
+}
+
+{
+  // Justo al borde: los rectángulos se tocan pero no se solapan.
+  const cajas = [caja(300, 60, true, 400, 150), caja(300, 60, true, 550, 150)]
+  const off = resolverColisiones(cajas, MARGEN)
+  check('pegadas de costado sin solaparse, no las mueve', off.every((o) => o === 0))
+}
+
+{
+  // Cadena: A pisa a B, y al bajar B queda pisando a C. Un solo pase no
+  // alcanza; hace falta el punto fijo.
+  const cajas = [caja(300, 60), caja(310, 60), caja(380, 60)]
+  const off = resolverColisiones(cajas, MARGEN)
+  check('una cadena de empujes se resuelve entera', superpuestas(cajas, off) === 0,
+    `desplazamientos: ${off.map((o) => Math.round(o)).join(', ')} px`)
+}
+
+{
+  // Cinco encimadas: no puede quedar ninguna sin lugar ni entrar en bucle.
+  const cajas = Array.from({ length: 5 }, (_, i) => caja(300 + i * 4))
+  const off = resolverColisiones(cajas, MARGEN)
+  check('cinco encimadas se ordenan sin trabarse', superpuestas(cajas, off) === 0,
     `desplazamientos: ${off.map((o) => Math.round(o)).join(', ')} px`)
 }
 

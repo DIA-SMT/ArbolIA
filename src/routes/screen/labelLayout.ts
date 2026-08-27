@@ -7,6 +7,9 @@
  */
 
 export interface CajaEtiqueta {
+  /** Centro horizontal en píxeles de pantalla. */
+  x: number
+  ancho: number
   /** Centro vertical en píxeles de pantalla. */
   y: number
   alto: number
@@ -19,29 +22,61 @@ export interface CajaEtiqueta {
  * Devuelve, para cada caja, cuántos píxeles hay que bajarla para que no pise
  * a las de arriba. Cero si no hace falta.
  *
- * Recorre de arriba hacia abajo y empuja lo mínimo necesario. Sólo baja,
- * nunca sube: si empujara en las dos direcciones, dos etiquetas cercanas se
- * separarían simétricamente y el conjunto se movería entero cada vez que la
- * cámara las cruza.
+ * Sólo se empujan las que se solapan EN LOS DOS EJES. La versión anterior
+ * apilaba todas en una única columna, ignorando la horizontal: dos etiquetas
+ * en extremos opuestos de la pantalla se corrían entre sí sin motivo, y como
+ * la cámara orbita, el orden vertical cambiaba constantemente y los
+ * desplazamientos no alcanzaban nunca a estabilizarse. En pantalla se veía
+ * como textos que se pisan y tiemblan.
+ *
+ * Sólo baja, nunca sube: si empujara en las dos direcciones, dos etiquetas
+ * cercanas se separarían simétricamente y el conjunto se movería entero cada
+ * vez que la cámara las cruza.
  */
 export function resolverColisiones(cajas: CajaEtiqueta[], margen: number): number[] {
   const offsets = new Array<number>(cajas.length).fill(0)
 
-  // Índices ordenados por posición vertical, sin perder de vista cuál era
-  // cada uno.
+  // De arriba hacia abajo, sin perder de vista cuál era cada una.
   const orden = cajas
     .map((caja, i) => ({ caja, i }))
     .filter((x) => x.caja.visible)
     .sort((a, b) => a.caja.y - b.caja.y)
 
-  let limiteInferior = -Infinity
+  /** Las que ya encontraron lugar, con su posición final. */
+  const colocadas: Array<{ izq: number; der: number; abajo: number }> = []
 
   for (const { caja, i } of orden) {
-    const arriba = caja.y - caja.alto / 2
-    const empuje = arriba < limiteInferior ? limiteInferior - arriba : 0
+    const izq = caja.x - caja.ancho / 2
+    const der = caja.x + caja.ancho / 2
+
+    let empuje = 0
+
+    /*
+     * Punto fijo: bajar para esquivar una caja puede meter la etiqueta
+     * debajo de otra que antes no molestaba. Se repite hasta que ninguna
+     * la toque. El tope de vueltas es la cantidad de cajas ya colocadas:
+     * más que eso sería imposible, y así no hay forma de quedarse girando.
+     */
+    for (let vuelta = 0; vuelta <= colocadas.length; vuelta++) {
+      let movio = false
+
+      for (const c of colocadas) {
+        const seCruzanEnX = izq < c.der && c.izq < der
+        if (!seCruzanEnX) continue
+
+        const arriba = caja.y - caja.alto / 2 + empuje
+        const falta = c.abajo + margen - arriba
+        if (falta > 0) {
+          empuje += falta
+          movio = true
+        }
+      }
+
+      if (!movio) break
+    }
 
     offsets[i] = empuje
-    limiteInferior = caja.y + caja.alto / 2 + empuje + margen
+    colocadas.push({ izq, der, abajo: caja.y + caja.alto / 2 + empuje })
   }
 
   return offsets

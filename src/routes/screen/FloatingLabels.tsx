@@ -31,11 +31,30 @@ interface SlotState {
   revision: number
 }
 
-/** Lo que cada etiqueta publica para que el padre resuelva las colisiones. */
+/**
+ * Lo que cada etiqueta publica para que el padre resuelva las colisiones.
+ *
+ * Se guardan las REFERENCIAS, no su contenido. Parece un detalle y no lo
+ * es: el div vive dentro del <Html> de drei, que portalea su contenido en
+ * su propio efecto. Cuando esta etiqueta se registraba, el nodo todavía no
+ * existía, así que se guardaba null y el resolvedor la descartaba para
+ * siempre — las etiquetas se pisaban en pantalla mientras el resolvedor,
+ * que está bien y tiene sus propias pruebas, no recibía ninguna caja.
+ */
 interface Registro {
-  div: HTMLDivElement | null
-  linea: THREE.Object3D | null
-  ancla: THREE.Vector3
+  divRef: React.RefObject<HTMLDivElement | null>
+  lineaRef: React.RefObject<THREE.Object3D | null>
+  /**
+   * Un objeto vacío puesto en el punto de anclaje, DENTRO de la escena.
+   *
+   * No alcanza con guardar el vector: las etiquetas cuelgan del grupo que
+   * escala con el crecimiento del árbol, así que la posición local no es la
+   * posición real. Proyectando el vector suelto, el resolvedor calculaba
+   * coordenadas de pantalla que no eran donde la etiqueta estaba y no veía
+   * ninguna superposición. Pidiéndole la posición de mundo a un objeto de
+   * la escena, cualquier transformación de los padres queda incluida.
+   */
+  anclaRef: React.RefObject<THREE.Object3D | null>
   /** Dirección de la hoja en el plano del suelo, para atenuar las de atrás. */
   plano: THREE.Vector3
   destacada: boolean
@@ -227,45 +246,69 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
   const proyectado = useMemo(() => new THREE.Vector3(), [])
 
   useFrame(() => {
-    const entradas = (registro.current ?? []).filter(
-      (e): e is Registro => e !== null && e.div !== null,
+    const publicadas = (registro.current ?? []).filter((e): e is Registro => e !== null)
+    const entradas = publicadas.filter(
+      (e) => e.divRef.current !== null && e.anclaRef.current !== null,
     )
-    if (entradas.length === 0) return
+
+    if (entradas.length === 0) {
+      // Si hay etiquetas registradas pero ninguna con nodo, el cableado se
+      // rompió: el resolvedor no recibe cajas y los textos se pisan en la
+      // pantalla del stand sin que nada falle.
+      if (import.meta.env.DEV && publicadas.length > 0) {
+        console.warn(
+          '[arbolia] Hay etiquetas registradas pero sin nodo en el DOM: ' +
+            'el resolvedor de colisiones no puede ubicarlas.',
+        )
+      }
+      return
+    }
 
     // --- 1. Proyección a coordenadas de pantalla --------------------
     plano.set(camera.position.x, 0, camera.position.z)
     if (plano.lengthSq() > 0.0001) plano.normalize()
 
     const cajas = entradas.map((e) => {
-      proyectado.copy(e.ancla).project(camera)
+      // Posición de mundo: incluye la escala del grupo del árbol.
+      e.anclaRef.current!.getWorldPosition(proyectado)
+      proyectado.project(camera)
 
       const y = (-proyectado.y * 0.5 + 0.5) * size.height
-      const alto = e.div!.offsetHeight || 44
+      const x = (proyectado.x * 0.5 + 0.5) * size.width
+      const nodo = e.divRef.current!
+      const alto = nodo.offsetHeight || 44
+      const ancho = nodo.offsetWidth || 150
 
       // Atenuación de las que quedaron del lado de atrás del árbol. Sin
       // esto una idea de la cara oculta flota por delante del tronco.
       const encara = plano.dot(e.plano)
       const opacidad = THREE.MathUtils.smoothstep(encara, -0.25, 0.4)
 
-      return { entrada: e, y, alto, opacidad }
+      return { entrada: e, x, ancho, y, alto, opacidad }
     })
 
     // --- 2. Resolución de colisiones -------------------------------
     const objetivos = resolverColisiones(
-      cajas.map((c) => ({ y: c.y, alto: c.alto, visible: c.opacidad >= 0.08 })),
+      cajas.map((c) => ({
+        x: c.x,
+        ancho: c.ancho,
+        y: c.y,
+        alto: c.alto,
+        visible: c.opacidad >= 0.08,
+      })),
       MARGEN,
     )
 
     // Interpolado: la cámara orbita y el orden vertical de las etiquetas
     // cambia, así que sin suavizado los textos saltarían al cruzarse.
     cajas.forEach((caja, i) => {
-      caja.entrada.offset = THREE.MathUtils.lerp(caja.entrada.offset, objetivos[i], 0.12)
+      caja.entrada.offset = THREE.MathUtils.lerp(caja.entrada.offset, objetivos[i], 0.3)
     })
 
     // --- 3. Aplicación al DOM y a la línea -------------------------
     for (const caja of cajas) {
       const { entrada, opacidad } = caja
-      const div = entrada.div!
+      const div = entrada.divRef.current!
 
       div.style.opacity = String(opacidad)
       /*
@@ -277,7 +320,7 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
       div.style.translate =
         Math.abs(entrada.offset) > 0.5 ? `0 ${entrada.offset.toFixed(1)}px` : ''
 
-      const linea = entrada.linea as THREE.Line | null
+      const linea = entrada.lineaRef.current as THREE.Line | null
       if (linea) {
         const material = linea.material as THREE.Material
         material.opacity = opacidad * (entrada.destacada ? 0.85 : 0.4)
@@ -302,6 +345,7 @@ function LabelAnchor({
   publicar: (slot: number, entrada: Registro | null) => void
 }) {
   const holderRef = useRef<HTMLDivElement>(null)
+  const anclaRef = useRef<THREE.Object3D>(null)
   const lineRef = useRef<THREE.Object3D>(null)
   const category = getCategory(idea.category)
 
@@ -350,9 +394,9 @@ function LabelAnchor({
     }
 
     publicar(slotIndex, {
-      div: holderRef.current,
-      linea: lineRef.current,
-      ancla: geometry.anchor,
+      divRef: holderRef,
+      lineaRef: lineRef,
+      anclaRef: anclaRef,
       plano: geometry.plano,
       destacada: fresh,
       offset: 0,
@@ -380,6 +424,10 @@ function LabelAnchor({
         <sphereGeometry args={[fresh ? 0.032 : 0.02, 8, 8]} />
         <meshBasicMaterial color={category.color} toneMapped={false} />
       </mesh>
+
+      {/* Marca el punto de anclaje dentro de la escena, para que el
+          resolvedor pueda pedir su posición de mundo. */}
+      <object3D ref={anclaRef} position={geometry.anchor} />
 
       <Html position={geometry.anchor} center zIndexRange={[8, 0]} pointerEvents="none">
         <div
