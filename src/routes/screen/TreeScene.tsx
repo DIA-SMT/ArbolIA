@@ -14,8 +14,6 @@ import Diagnostics, { type DiagInfo } from './Diagnostics'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
 interface Props {
-  /** Todas las publicadas: alimentan etiquetas y contadores. */
-  ideas: Idea[]
   /** Sólo las que ocupan hoja. Único conteo válido para los slots. */
   propuestas: Idea[]
   activeIdea: Idea | null
@@ -34,7 +32,6 @@ interface Props {
 }
 
 export default function TreeScene({
-  ideas,
   propuestas,
   activeIdea,
   criticaCayendo,
@@ -82,8 +79,16 @@ export default function TreeScene({
         <Journey idea={activeIdea} indexInCategory={indexInCategory} />
 
         {/* La crítica hace el camino inverso: cae y alimenta las raíces. */}
-        <FallingFruit idea={criticaCayendo} />
-        <FloatingLabels ideas={ideas} visible={labelsVisible} />
+        <FallingFruit idea={criticaCayendo} visible={labelsVisible} />
+        {/*
+          Sólo las propuestas cuelgan de la copa.
+
+          Una crítica muestra su texto mientras cae, y cuando toca las
+          raíces se termina: no vuelve a la rotación. Si siguiera colgada
+          arriba diría lo contrario de lo que hace la instalación — el
+          reclamo no vive en las ramas, alimenta la base.
+        */}
+        <FloatingLabels ideas={propuestas} visible={labelsVisible} />
         <CelebrationBurst trigger={celebration} />
       </GrowthRig>
 

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 import * as THREE from 'three'
+import { getCategory } from '../../lib/categories'
 import { getTreeModel } from './treeGeometry'
 import {
   buildFallPath,
@@ -31,15 +33,29 @@ import type { Idea } from '../../lib/types'
 const ESTELA = 20
 const SALPICADURA = 34
 
+/**
+ * Tamaño del fruto.
+ *
+ * Grande a propósito. La primera versión medía 0,16 y en el stand no se
+ * veía: un punto de ese tamaño, sobre un árbol que ocupa un tercio de la
+ * pantalla y con las etiquetas encima, pasa desapercibido. Es el gesto que
+ * la instalación tiene que contar, no un detalle.
+ */
+const TAMANO = 0.34
+
 interface Props {
   idea: Idea | null
+  /** Ctrl+H del operador: oculta el texto sin frenar la caída. */
+  visible?: boolean
 }
 
-export default function FallingFruit({ idea }: Props) {
+export default function FallingFruit({ idea, visible = true }: Props) {
   const model = useMemo(() => getTreeModel(), [])
   const glow = useMemo(() => getGlowTexture(), [])
 
+  const grupoRef = useRef<THREE.Group>(null)
   const frutoRef = useRef<THREE.Sprite>(null)
+  const haloRef = useRef<THREE.Sprite>(null)
   const estelaRef = useRef<THREE.Points>(null)
   const salpicaduraRef = useRef<THREE.Points>(null)
   const anilloRef = useRef<THREE.Mesh>(null)
@@ -56,6 +72,8 @@ export default function FallingFruit({ idea }: Props) {
    * reprodujera dos veces, saldría del mismo lugar— y para que dos críticas
    * seguidas de la misma área no salgan calcadas.
    */
+  const categoria = getCategory(idea?.category ?? 'comunidad')
+
   const caida = useMemo(() => {
     if (!idea) return null
     const p = buildFallPath(model, idea.category, idea.id)
@@ -81,6 +99,8 @@ export default function FallingFruit({ idea }: Props) {
   // Reinicio al empezar una caída nueva.
   useEffect(() => {
     transcurridoRef.current = 0
+    frutoRef.current?.position.set(0, 0, 0)
+    haloRef.current?.position.set(0, 0, 0)
     if (!caida) return
 
     // La salpicadura se abre hacia afuera y hacia abajo: entra en la tierra,
@@ -103,10 +123,12 @@ export default function FallingFruit({ idea }: Props) {
   useFrame((_, delta) => {
     const fruto = frutoRef.current
     const anillo = anilloRef.current
-    if (!fruto || !anillo) return
+    const grupo = grupoRef.current
+    const halo = haloRef.current
+    if (!fruto || !anillo || !grupo || !halo) return
 
     if (!caida) {
-      fruto.visible = false
+      grupo.visible = false
       anillo.visible = false
       if (estelaRef.current) estelaRef.current.visible = false
       if (salpicaduraRef.current) salpicaduraRef.current.visible = false
@@ -116,8 +138,9 @@ export default function FallingFruit({ idea }: Props) {
     transcurridoRef.current += delta * 1000
     const t = transcurridoRef.current
 
-    fruto.visible = true
+    grupo.visible = true
     fruto.material.color.copy(caida.color)
+    halo.material.color.copy(caida.color)
 
     // ---- 1. Se desprende ------------------------------------------------
     // Madura en la rama y tiembla antes de soltarse. Sin esto la caída
@@ -127,10 +150,12 @@ export default function FallingFruit({ idea }: Props) {
       const punto = caida.curva.getPoint(0)
       const tiembla = p > 0.6 ? Math.sin(t * 0.05) * 0.012 * (p - 0.6) * 2.5 : 0
 
-      fruto.position.set(punto.x + tiembla, punto.y, punto.z)
-      const escala = 0.16 * Math.min(1, p * 2.4)
-      fruto.scale.setScalar(escala)
-      ;(fruto.material as THREE.SpriteMaterial).opacity = Math.min(1, p * 2.4)
+      grupo.position.set(punto.x + tiembla, punto.y, punto.z)
+      const crece = Math.min(1, p * 2.4)
+      fruto.scale.setScalar(TAMANO * crece)
+      halo.scale.setScalar(TAMANO * 2.6 * crece)
+      ;(fruto.material as THREE.SpriteMaterial).opacity = crece
+      ;(halo.material as THREE.SpriteMaterial).opacity = crece * 0.35
 
       if (estelaRef.current) estelaRef.current.visible = false
       anillo.visible = false
@@ -144,9 +169,11 @@ export default function FallingFruit({ idea }: Props) {
       const avance = p * p * (3 - 2 * p) * 0.35 + p * p * 0.65
       const punto = caida.curva.getPoint(Math.min(1, avance))
 
-      fruto.position.copy(punto)
-      fruto.scale.setScalar(0.16)
+      grupo.position.copy(punto)
+      fruto.scale.setScalar(TAMANO)
+      halo.scale.setScalar(TAMANO * 2.6)
       ;(fruto.material as THREE.SpriteMaterial).opacity = 1
+      ;(halo.material as THREE.SpriteMaterial).opacity = 0.35
 
       // Estela: cada punto persigue al anterior, así se estira al acelerar.
       const estela = estelaRef.current
@@ -172,9 +199,11 @@ export default function FallingFruit({ idea }: Props) {
     const p = Math.min(1, (t - DESPRENDER_MS - CAER_MS) / HUNDIR_MS)
 
     // El fruto entra en la tierra: baja un poco más y se apaga.
-    fruto.position.set(SUELO.x, SUELO.y - p * 0.22, SUELO.z)
-    fruto.scale.setScalar(0.16 * (1 - p))
+    grupo.position.set(SUELO.x, SUELO.y - p * 0.22, SUELO.z)
+    fruto.scale.setScalar(TAMANO * (1 - p))
+    halo.scale.setScalar(TAMANO * 2.6 * (1 + p * 0.8))
     ;(fruto.material as THREE.SpriteMaterial).opacity = 1 - p
+    ;(halo.material as THREE.SpriteMaterial).opacity = 0.35 * (1 - p)
 
     // Anillo de energía que se abre en el suelo, hacia las raíces.
     anillo.visible = true
@@ -219,19 +248,50 @@ export default function FallingFruit({ idea }: Props) {
         el fruto se ve pero la estela y la salpicadura no aparecen nunca.
       */}
 
-      {/* El fruto */}
-      <sprite ref={frutoRef} visible={false} frustumCulled={false}>
-        <spriteMaterial
-          map={glow}
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          // Sin esto el mapeo de tonos apaga el resplandor y el fruto se
-          // pierde contra la copa. Journey usa el mismo ajuste.
-          toneMapped={false}
-          opacity={0}
-        />
-      </sprite>
+      {/*
+        El fruto y su texto viajan juntos dentro de este grupo: la etiqueta
+        de drei toma la transformación de su padre, así que sigue la caída
+        sin que haya que moverla a mano cuadro a cuadro.
+      */}
+      <group ref={grupoRef} visible={false}>
+        {/* Resplandor: es lo que hace que la caída se lea de lejos. */}
+        <sprite ref={haloRef} frustumCulled={false}>
+          <spriteMaterial
+            map={glow}
+            transparent
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            toneMapped={false}
+            opacity={0}
+          />
+        </sprite>
+
+        {idea && visible && (
+          <Html center position={[0, -0.42, 0]} zIndexRange={[7, 0]} pointerEvents="none">
+            <div className="fruto" style={{ ['--fruto' as string]: categoria.color }}>
+              <span className="fruto__cat">
+                <span aria-hidden>{categoria.emoji}</span> {categoria.label}
+              </span>
+              <span className="fruto__texto">{idea.text}</span>
+              <span className="fruto__pie">alimenta las raíces</span>
+            </div>
+          </Html>
+        )}
+
+        {/* El fruto */}
+        <sprite ref={frutoRef} frustumCulled={false}>
+          <spriteMaterial
+            map={glow}
+            transparent
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            // Sin esto el mapeo de tonos apaga el resplandor y el fruto se
+            // pierde contra la copa. Journey usa el mismo ajuste.
+            toneMapped={false}
+            opacity={0}
+          />
+        </sprite>
+      </group>
 
       {/* Estela de la caída */}
       <points ref={estelaRef} geometry={estelaGeo} visible={false} frustumCulled={false}>

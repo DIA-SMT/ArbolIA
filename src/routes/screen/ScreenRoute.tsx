@@ -91,7 +91,6 @@ export default function ScreenRoute() {
         }}
       >
         <TreeScene
-          ideas={tree.ideas}
           propuestas={tree.propuestas}
           activeIdea={tree.activeIdea}
           criticaCayendo={tree.criticaCayendo}
