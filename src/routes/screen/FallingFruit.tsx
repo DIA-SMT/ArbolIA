@@ -80,6 +80,12 @@ export default function FallingFruit({ idea, visible = true }: Props) {
     return { curva: p.curva, color: new THREE.Color(p.color) }
   }, [idea, model])
 
+  /** Hacia qué lado acompaña el texto: el mismo de la rama de la que cae. */
+  const lado = useMemo(() => {
+    if (!caida) return 1
+    return caida.curva.getPoint(0).x >= 0 ? 1 : -1
+  }, [caida])
+
   const estelaGeo = useMemo(() => {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(ESTELA * 3), 3))
@@ -266,12 +272,23 @@ export default function FallingFruit({ idea, visible = true }: Props) {
           />
         </sprite>
 
+        {/*
+          El texto va al costado, no debajo.
+
+          Pegado a la fruta le robaba el protagonismo justo cuando la fruta
+          es el gesto; y debajo se metía en el recorrido de la caída. El
+          lado sale del punto de origen: si el fruto se desprende de una
+          rama de la derecha, el texto acompaña por la derecha, así nunca
+          cruza por delante del tronco.
+        */}
         {idea && visible && (
-          <Html center position={[0, -0.42, 0]} zIndexRange={[7, 0]} pointerEvents="none">
+          <Html
+            center
+            position={[lado * 0.95, -0.1, 0]}
+            zIndexRange={[7, 0]}
+            pointerEvents="none"
+          >
             <div className="fruto" style={{ ['--fruto' as string]: categoria.color }}>
-              <span className="fruto__cat">
-                <span aria-hidden>{categoria.emoji}</span> {categoria.label}
-              </span>
               <span className="fruto__texto">{idea.text}</span>
               <span className="fruto__pie">alimenta las raíces</span>
             </div>

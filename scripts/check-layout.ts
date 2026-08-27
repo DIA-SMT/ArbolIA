@@ -7,6 +7,8 @@
  *
  *   npm run check:layout
  */
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import { resolverColisiones, type CajaEtiqueta } from '../src/routes/screen/labelLayout'
 
 const MARGEN = 14
@@ -161,6 +163,38 @@ console.log('\nCOLISIÓN DE ETIQUETAS')
   const off = resolverColisiones(cajas, MARGEN)
   check('cinco encimadas se ordenan sin trabarse', superpuestas(cajas, off) === 0,
     `desplazamientos: ${off.map((o) => Math.round(o)).join(', ')} px`)
+}
+
+// --- Toda hoja de estilo tiene que estar importada --------------------
+{
+  /*
+   * Un .css que nadie importa no falla: simplemente no se aplica, y el
+   * componente sale sin estilo. Pasó de verdad — la etiqueta del reclamo
+   * que cae se escribió en un archivo huérfano y en la pantalla salió
+   * como texto suelto, sin card, sin que nada avisara.
+   */
+  const hojas: string[] = []
+  const fuentes: string[] = []
+
+  const recorrer = (dir: string) => {
+    for (const nombre of readdirSync(dir)) {
+      if (nombre === 'node_modules' || nombre.startsWith('.')) continue
+      const ruta = join(dir, nombre)
+      if (statSync(ruta).isDirectory()) recorrer(ruta)
+      else if (nombre.endsWith('.css')) hojas.push(ruta)
+      else if (/.tsx?$/.test(nombre)) fuentes.push(readFileSync(ruta, 'utf8'))
+    }
+  }
+  recorrer('src')
+
+  const codigo = fuentes.join('\n')
+  const huerfanas = hojas.filter((h) => !codigo.includes(basename(h)))
+
+  check(
+    'ninguna hoja de estilo quedó sin importar',
+    huerfanas.length === 0,
+    huerfanas.length ? huerfanas.join(', ') : `${hojas.length} revisadas`,
+  )
 }
 
 console.log(
