@@ -14,10 +14,22 @@ import {
 import { getTreeModel } from './treeGeometry'
 import type { GrowthProfile } from '../../lib/types'
 
+/** Cuánto dura el resplandor de las raíces tras una crítica, en segundos. */
+const PULSO_SEG = 2.8
+
 interface Props {
   growth: GrowthProfile
   /** Categoría que está recibiendo una idea ahora mismo: su rama se enciende. */
   highlightSlug: string | null
+  /**
+   * Sube de a uno cada vez que una crítica toca la tierra.
+   *
+   * El efecto se dispara acá adentro y no desde afuera por una razón
+   * concreta: este useFrame reescribe uIntensity y uReveal de las raíces en
+   * CADA cuadro. Cualquier componente que intentara encenderlas desde fuera
+   * vería su valor borrado al cuadro siguiente.
+   */
+  pulsoRaices: number
 }
 
 /**
@@ -27,7 +39,7 @@ interface Props {
  * total. Se fusionan en 10 mallas (tronco + raíces + 8 áreas) para no
  * gastar doscientas llamadas de dibujo en una PC de stand.
  */
-export default function TreeStructure({ growth, highlightSlug }: Props) {
+export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Props) {
   const model = useMemo(() => getTreeModel(), [])
 
   const trunkGeo = useMemo(
@@ -132,6 +144,16 @@ export default function TreeStructure({ growth, highlightSlug }: Props) {
   allMaterials.current = [trunkMaterial, rootMaterial, ...branchMaterials]
 
   /*
+   * Estado del pulso de las raíces.
+   *
+   * En segundos y no en cuadros: los demás lerps de la escena usan factor
+   * por cuadro, así que su duración real cambia con el framerate. Este
+   * efecto tiene que durar lo mismo en la máquina de desarrollo y en la PC
+   * del stand a 30 fps, porque es lo que la gente va a estar mirando.
+   */
+  const pulso = useRef({ visto: 0, restante: 0 })
+
+  /*
    * Sin dispose() manual, a propósito.
    *
    * Geometrías y materiales viven en useMemo, así que sobreviven a un
@@ -142,13 +164,29 @@ export default function TreeStructure({ growth, highlightSlug }: Props) {
    */
 
   useFrame((_, delta) => {
+    // Una crítica acaba de tocar la tierra.
+    if (pulsoRaices !== pulso.current.visto) {
+      pulso.current.visto = pulsoRaices
+      pulso.current.restante = PULSO_SEG
+    }
+    if (pulso.current.restante > 0) {
+      pulso.current.restante = Math.max(0, pulso.current.restante - delta)
+    }
+    // Sube de golpe y se apaga despacio: el reclamo llega y queda resonando.
+    const p = pulso.current.restante / PULSO_SEG
+    const brilloExtra = p * p * 2.6
+
     for (const mat of allMaterials.current) {
       mat.uniforms.uTime.value += delta
       mat.uniforms.uWindTime.value += delta
     }
 
-    trunkMaterial.uniforms.uIntensity.value = growth.glowIntensity
-    rootMaterial.uniforms.uIntensity.value = growth.glowIntensity * 0.85
+    trunkMaterial.uniforms.uIntensity.value = growth.glowIntensity * (1 + brilloExtra * 0.25)
+    rootMaterial.uniforms.uIntensity.value = growth.glowIntensity * 0.85 + brilloExtra
+
+    // Mientras dura el pulso la energía circula más rápido hacia el tronco:
+    // se ve que las raíces le están mandando algo al árbol.
+    rootMaterial.uniforms.uSpeed.value = 0.09 + brilloExtra * 0.22
 
     // Las raices se extienden con la participacion. Interpolado y lento:
     // tienen que verse avanzar, no aparecer de un salto al cruzar un umbral.

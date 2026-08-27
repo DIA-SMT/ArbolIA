@@ -30,9 +30,28 @@ export default function ScreenRoute() {
   const flags = useMemo(readFlags, [])
   // Las etapas dependen de la meta vigente: si el equipo la cambia durante
   // la expo, los tramos de crecimiento se recalculan solos.
+  /*
+   * Las críticas extienden las raíces.
+   *
+   * El perfil base sale del total de ideas, así que las raíces ya crecen
+   * con la participación. Encima de eso, cada crítica agrega alcance: es
+   * literalmente lo que la metáfora promete, y sin este término la caída
+   * sería un lindo efecto que no deja nada.
+   *
+   * El tope existe porque uReveal recorta la geometría en 1: pasado ese
+   * valor no hay más raíz que revelar y el término dejaría de leerse.
+   * Con 22 críticas se alcanza el máximo, suficiente para empujar la base
+   * más allá de 0.68 —donde empiezan las raíces secundarias— bastante
+   * antes de que lo hiciera el crecimiento solo. O sea que el reclamo no
+   * alarga la base: la RAMIFICA.
+   */
   const growth = useMemo(
-    () => getGrowthProfile(tree.stats.ideas, tree.goal),
-    [tree.stats.ideas, tree.goal],
+    () => {
+      const base = getGrowthProfile(tree.stats.ideas, tree.goal)
+      const empuje = Math.min(0.22, tree.stats.criticas * 0.01)
+      return { ...base, rootReach: Math.min(1, base.rootReach + empuje) }
+    },
+    [tree.stats.ideas, tree.stats.criticas, tree.goal],
   )
 
   const recentIdeas = useMemo(
@@ -73,7 +92,10 @@ export default function ScreenRoute() {
       >
         <TreeScene
           ideas={tree.ideas}
+          propuestas={tree.propuestas}
           activeIdea={tree.activeIdea}
+          criticaCayendo={tree.criticaCayendo}
+          pulsoRaices={tree.pulsoRaices}
           growth={growth}
           celebration={tree.celebration}
           quality={quality}

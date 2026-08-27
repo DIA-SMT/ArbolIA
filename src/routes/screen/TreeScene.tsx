@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import TreeStructure from './TreeStructure'
 import Leaves from './Leaves'
 import Journey from './Journey'
+import FallingFruit from './FallingFruit'
 import Atmosphere from './Atmosphere'
 import CelebrationBurst from './CelebrationBurst'
 import FloatingLabels from './FloatingLabels'
@@ -13,8 +14,15 @@ import Diagnostics, { type DiagInfo } from './Diagnostics'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
 interface Props {
+  /** Todas las publicadas: alimentan etiquetas y contadores. */
   ideas: Idea[]
+  /** Sólo las que ocupan hoja. Único conteo válido para los slots. */
+  propuestas: Idea[]
   activeIdea: Idea | null
+  /** Crítica cayendo hacia las raíces, o null. */
+  criticaCayendo: Idea | null
+  /** Sube de a uno cuando una crítica toca la tierra. */
+  pulsoRaices: number
   growth: GrowthProfile
   celebration: number | null
   quality: 'alta' | 'media'
@@ -27,7 +35,10 @@ interface Props {
 
 export default function TreeScene({
   ideas,
+  propuestas,
   activeIdea,
+  criticaCayendo,
+  pulsoRaices,
   growth,
   celebration,
   quality,
@@ -37,10 +48,12 @@ export default function TreeScene({
 }: Props) {
   // Cuántas hojas de la categoría entrante ya están plantadas: define el slot
   // exacto al que va a viajar la partícula.
+  // Se cuenta sobre `propuestas`, NUNCA sobre `ideas`: una crítica no
+  // ocupa slot, y contarla acá correría todas las hojas de esa rama.
   const indexInCategory = useMemo(() => {
     if (!activeIdea) return 0
-    return ideas.reduce((n, i) => (i.category === activeIdea.category ? n + 1 : n), 0)
-  }, [ideas, activeIdea])
+    return propuestas.reduce((n, i) => (i.category === activeIdea.category ? n + 1 : n), 0)
+  }, [propuestas, activeIdea])
 
   const bloomRef = useRef<BloomEffect | null>(null)
 
@@ -60,9 +73,16 @@ export default function TreeScene({
         estructura, las hojas quedarían flotando fuera de sus ramas.
       */}
       <GrowthRig scale={growth.canopyScale}>
-        <TreeStructure growth={growth} highlightSlug={activeIdea?.category ?? null} />
-        <Leaves ideas={ideas} growth={growth} />
+        <TreeStructure
+          growth={growth}
+          highlightSlug={activeIdea?.category ?? null}
+          pulsoRaices={pulsoRaices}
+        />
+        <Leaves ideas={propuestas} growth={growth} />
         <Journey idea={activeIdea} indexInCategory={indexInCategory} />
+
+        {/* La crítica hace el camino inverso: cae y alimenta las raíces. */}
+        <FallingFruit idea={criticaCayendo} />
         <FloatingLabels ideas={ideas} visible={labelsVisible} />
         <CelebrationBurst trigger={celebration} />
       </GrowthRig>

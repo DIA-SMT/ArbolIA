@@ -19,6 +19,15 @@ export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'demo'
 /** Duracion nominal del viaje de la particula + brote de la hoja. */
 const ANIM_BASE_MS = 3600
 const ANIM_FAST_MS = 2200
+/**
+ * Lo que tarda una crítica en caer de la copa a la tierra.
+ *
+ * Más larga que el viaje de una propuesta a propósito: la caída tiene que
+ * leerse como un gesto completo —se desprende, cae, se hunde, las raíces
+ * responden— y no como algo que se cayó del árbol por accidente.
+ */
+const CAIDA_MS = 4200
+
 /** Si se acumulan mas que esto, se plantan de golpe para no quedar atras. */
 const QUEUE_BURST_THRESHOLD = 6
 const STATS_REFRESH_MS = 30_000
@@ -29,10 +38,32 @@ export interface LiveTree {
   stats: Stats
   /** Meta vigente, editable desde el panel sin redesplegar. */
   goal: number
-  /** Hojas ya integradas al arbol. */
+  /** Todas las ideas publicadas: propuestas y críticas. */
   ideas: Idea[]
-  /** Idea que esta viajando por el arbol en este momento. */
+  /**
+   * Sólo las que ocupan una hoja.
+   *
+   * Existe para que no haya dos conteos. El slot de cada hoja se calcula
+   * contando cuántas hay ya de esa categoría, y ese conteo ocurre en dos
+   * lugares distintos —el destino del viaje y el dibujado—. Mientras toda
+   * idea era una hoja, los dos daban lo mismo por accidente. Con las
+   * críticas fuera de la copa, cualquiera de los dos que siguiera contando
+   * sobre `ideas` desincronizaría al otro y la propuesta siguiente
+   * aterrizaría sobre un slot ya ocupado.
+   */
+  propuestas: Idea[]
+  /** Propuesta que esta viajando hacia su hoja en este momento. */
   activeIdea: Idea | null
+  /** Crítica que está cayendo hacia las raíces en este momento. */
+  criticaCayendo: Idea | null
+  /**
+   * Sube de a uno cada vez que una crítica toca la tierra.
+   *
+   * Es un contador y no un booleano para que la escena pueda distinguir
+   * dos críticas seguidas: con una bandera, la segunda no dispararía nada
+   * si la primera todavía no se apagó.
+   */
+  pulsoRaices: number
   /**
    * Silencio de emergencia del operador (Ctrl+H).
    *
@@ -57,6 +88,8 @@ export function useLiveTree(): LiveTree {
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [activeIdea, setActiveIdea] = useState<Idea | null>(null)
+  const [criticaCayendo, setCriticaCayendo] = useState<Idea | null>(null)
+  const [pulsoRaices, setPulsoRaices] = useState(0)
   const [textoSilenciado, setTextoSilenciado] = useState(false)
   const [celebration, setCelebration] = useState<number | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
@@ -121,9 +154,26 @@ export function useLiveTree(): LiveTree {
     if (!next) return
 
     animatingRef.current = true
-    setActiveIdea(next)
 
-    const duration = queue.length > 2 ? ANIM_FAST_MS : ANIM_BASE_MS
+    /*
+     * Acá se bifurca la instalación.
+     *
+     * Una PROPUESTA sube desde las raíces y brota como hoja en su rama.
+     * Una CRÍTICA hace el camino inverso: cae desde la copa y se hunde en
+     * la tierra, y las raíces —que en este árbol son la comunidad— se
+     * extienden. El municipio no esconde el reclamo: se alimenta de él.
+     */
+    const esCritica = next.tipo === 'critica'
+    if (esCritica) setCriticaCayendo(next)
+    else setActiveIdea(next)
+
+    // La caída no se acelera con la cola. Es el gesto que hay que entender
+    // desde lejos, y apurarlo lo convierte en un parpadeo.
+    const duration = esCritica
+      ? CAIDA_MS
+      : queue.length > 2
+        ? ANIM_FAST_MS
+        : ANIM_BASE_MS
 
     later(() => {
       /*
@@ -134,8 +184,11 @@ export function useLiveTree(): LiveTree {
        */
       if (!retiradasRef.current.has(next.id)) {
         setIdeas((prev) => [...prev, next])
+        // Tocó la tierra: las raíces se fortalecen.
+        if (esCritica) setPulsoRaices((n) => n + 1)
       }
       setActiveIdea(null)
+      setCriticaCayendo(null)
       animatingRef.current = false
       later(pump, 260)
     }, duration)
@@ -435,11 +488,77 @@ export function useLiveTree(): LiveTree {
     return () => clearInterval(interval)
   }, [status, enqueue, aplicarModeracion])
 
+  /*
+   * Ensayo de la instalación, sólo en desarrollo.
+   *
+   * Se elimina del build de producción. Permite disparar una propuesta o
+   * una crítica sin tocar la base, que es lo único que hace falta para
+   * calibrar cómo se ven los dos gestos en el LED del stand el día del
+   * armado, sin depender de que alguien mande ideas de verdad.
+   *
+   *   __arbolia_ensayo.critica('El municipio no limpia el barrio')
+   *   __arbolia_ensayo.propuesta('Más colectivos por Mate de Luna', 'movilidad')
+   */
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+
+    let n = 0
+    const inventar = (texto: string, categoria: string, tipo: 'propuesta' | 'critica'): Idea => ({
+      id: `ensayo-${tipo}-${Date.now()}-${n++}`,
+      text: texto,
+      category: categoria as Idea['category'],
+      status: 'visible',
+      archived_at: null,
+      created_at: new Date().toISOString(),
+      device_id: 'ensayo-local',
+      tipo,
+    })
+
+    const api = {
+      propuesta: (texto = 'Más colectivos por la avenida Mate de Luna', cat = 'movilidad') =>
+        enqueue([inventar(texto, cat, 'propuesta')]),
+      critica: (texto = 'El municipio no limpia el barrio hace meses', cat = 'ambiente') =>
+        enqueue([inventar(texto, cat, 'critica')]),
+      /** Varias seguidas, para ver cómo se encolan. */
+      lluvia: (cantidad = 5, tipo: 'propuesta' | 'critica' = 'critica') => {
+        const cats = ['ambiente', 'movilidad', 'espacios', 'cultura', 'urbanismo']
+        enqueue(
+          Array.from({ length: cantidad }, (_, i) =>
+            inventar(
+              tipo === 'critica'
+                ? `Reclamo de ensayo número ${i + 1}`
+                : `Propuesta de ensayo número ${i + 1}`,
+              cats[i % cats.length],
+              tipo,
+            ),
+          ),
+        )
+      },
+    }
+
+    ;(window as unknown as { __arbolia_ensayo?: typeof api }).__arbolia_ensayo = api
+    return () => {
+      delete (window as unknown as { __arbolia_ensayo?: typeof api }).__arbolia_ensayo
+    }
+  }, [enqueue])
+
   // Limpieza de timers al desmontar.
   useEffect(() => clearTimers, [])
 
   const toggleSilencio = useCallback(() => setTextoSilenciado((v) => !v), [])
   const dismissCelebration = useCallback(() => setCelebration(null), [])
+
+  /*
+   * Una sola fuente para todo lo que ocupa una hoja.
+   *
+   * El slot de cada hoja se calcula contando cuántas hay ya de su categoría,
+   * y ese conteo ocurre en dos lugares independientes: el destino del viaje
+   * en TreeScene y el dibujado en Leaves. Mientras toda idea era una hoja,
+   * los dos partían del mismo array y coincidían por accidente. Ahora que
+   * las críticas no van a la copa, si uno solo de los dos siguiera contando
+   * sobre `ideas` la propuesta siguiente aterrizaría sobre un slot ocupado.
+   */
+  const propuestas = useMemo(() => ideas.filter((i) => i.tipo !== 'critica'), [ideas])
 
   return useMemo(
     () => ({
@@ -447,7 +566,10 @@ export function useLiveTree(): LiveTree {
       stats,
       goal,
       ideas,
+      propuestas,
       activeIdea,
+      criticaCayendo,
+      pulsoRaices,
       textoSilenciado,
       queueLength,
       celebration,
@@ -460,7 +582,10 @@ export function useLiveTree(): LiveTree {
       stats,
       goal,
       ideas,
+      propuestas,
       activeIdea,
+      criticaCayendo,
+      pulsoRaices,
       textoSilenciado,
       queueLength,
       celebration,
