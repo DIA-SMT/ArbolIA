@@ -280,6 +280,15 @@ export interface AdminFilters {
   status?: IdeaStatus | 'all'
   search?: string
   limit?: number
+  /**
+   * Ver las archivadas en vez de las de la corrida actual.
+   *
+   * Reiniciar estadísticas archiva, no borra: los datos quedan para el
+   * informe. Pero el panel las seguía listando junto a las vivas, así que
+   * después de un reinicio el equipo se encontraba moderando una cola
+   * llena de ideas de ayer mientras los contadores decían cero.
+   */
+  archivadas?: boolean
 }
 
 export async function fetchAdminIdeas(filters: AdminFilters = {}): Promise<Idea[]> {
@@ -293,6 +302,10 @@ export async function fetchAdminIdeas(filters: AdminFilters = {}): Promise<Idea[
     )
     .order('created_at', { ascending: false })
     .limit(filters.limit ?? 300)
+
+  query = filters.archivadas
+    ? query.not('archived_at', 'is', null)
+    : query.is('archived_at', null)
 
   if (filters.category && filters.category !== 'all') {
     query = query.eq('category', filters.category)

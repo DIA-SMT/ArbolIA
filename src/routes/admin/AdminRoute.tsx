@@ -24,7 +24,15 @@ const REFRESH_MS = 45_000
 const RESET_PHRASE = 'REINICIAR'
 
 type CategoryFilter = CategorySlug | 'all'
-type StatusFilter = IdeaStatus | 'all'
+/**
+ * 'archivadas' no es un estado de la idea sino de la corrida.
+ *
+ * Reiniciar estadísticas archiva, no borra: los datos quedan para el
+ * informe. Por eso hace falta poder verlas, pero fuera de la cola de
+ * moderación — si no, después de un reinicio el equipo modera ideas de la
+ * jornada anterior mientras los contadores dicen cero.
+ */
+type StatusFilter = IdeaStatus | 'all' | 'archivadas'
 
 export default function AdminRoute() {
   const [session, setSession] = useState<'checking' | 'out' | 'in'>('checking')
@@ -151,7 +159,12 @@ function Dashboard() {
   const load = useCallback(async () => {
     try {
       const [rows, freshStats, serie, meta] = await Promise.all([
-        fetchAdminIdeas({ category, status, search }),
+        fetchAdminIdeas({
+          category,
+          status: status === 'archivadas' ? 'all' : status,
+          search,
+          archivadas: status === 'archivadas',
+        }),
         fetchStats(),
         fetchTimeline(horas),
         fetchGoal(),
@@ -297,13 +310,18 @@ function Dashboard() {
               <option value="visible">Publicadas</option>
               <option value="flagged">Pendientes de revisión</option>
               <option value="hidden">Retiradas</option>
+              <option value="archivadas">Archivadas (reinicios anteriores)</option>
             </select>
           </div>
 
           {loading ? (
             <p className="list__empty">Cargando ideas…</p>
           ) : ideas.length === 0 ? (
-            <p className="list__empty">No hay ideas que coincidan con el filtro.</p>
+            <p className="list__empty">
+              {status === 'archivadas'
+                ? 'No hay ideas archivadas.'
+                : 'No hay ideas que coincidan con el filtro.'}
+            </p>
           ) : (
             <ul className="list__items">
               {ideas.map((idea) => {
