@@ -32,6 +32,34 @@ export interface Veredicto {
 const SIN_REVISION: Veredicto = { publicar: true, motivo: '', tipo: 'propuesta', degradado: true }
 
 /**
+ * Avisa una sola vez que la revisión no está funcionando.
+ *
+ * Hasta acá era completamente silencioso: si /api no responde, cada
+ * propuesta entra como propuesta y NINGUNA crítica cae nunca. La
+ * instalación se ve bien —hojas brotando, contadores subiendo— y falta la
+ * mitad, sin que nada lo diga.
+ *
+ * Pasa en desarrollo, donde /api sólo existe con `vercel dev`, y pasaría
+ * en el stand si se agotara el crédito del proveedor. En los dos casos
+ * conviene enterarse.
+ *
+ * Una sola vez por sesión: repetirlo en la consola del celular de cada
+ * vecino no le sirve a nadie.
+ */
+let yaAviso = false
+
+function avisarDegradado(porque: string): void {
+  if (yaAviso) return
+  yaAviso = true
+  console.warn(
+    '[arbolia] La revisión semántica no está disponible (' +
+      porque +
+      '). Todas las ideas van a entrar como propuesta y ninguna crítica va a ' +
+      'caer a las raíces. En desarrollo es normal: /api sólo existe con `vercel dev`.',
+  )
+}
+
+/**
  * Revisión semántica previa al envío.
  *
  * Falla abierta a propósito. Si la función no responde —la red del predio,
@@ -57,9 +85,13 @@ export async function revisarPropuesta(
       signal: corte.signal,
     })
 
-    if (!res.ok) return SIN_REVISION
+    if (!res.ok) {
+      avisarDegradado('respondio ' + res.status)
+      return SIN_REVISION
+    }
 
     const datos = (await res.json()) as Partial<Veredicto>
+    if (datos.degradado === true) avisarDegradado('el servidor la salteo')
     return {
       publicar: datos.publicar !== false,
       motivo: typeof datos.motivo === 'string' ? datos.motivo : '',
@@ -67,6 +99,7 @@ export async function revisarPropuesta(
       degradado: datos.degradado === true,
     }
   } catch {
+    avisarDegradado('no se pudo conectar')
     return SIN_REVISION
   } finally {
     window.clearTimeout(reloj)

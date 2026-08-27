@@ -122,6 +122,19 @@ export function useLiveTree(): LiveTree {
   const cargaListaRef = useRef(false)
   const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([])
 
+  /*
+   * Espejos del estado, para que el ensayo de desarrollo pueda mirarlo sin
+   * suscribirse a React. Se actualizan en cada render.
+   */
+  const ideasRef = useRef<Idea[]>([])
+  const activeIdeaRef = useRef<Idea | null>(null)
+  const criticaCayendoRef = useRef<Idea | null>(null)
+  const pulsoRef = useRef(0)
+  ideasRef.current = ideas
+  activeIdeaRef.current = activeIdea
+  criticaCayendoRef.current = criticaCayendo
+  pulsoRef.current = pulsoRaices
+
   const clearTimers = () => {
     timersRef.current.forEach(clearTimeout)
     timersRef.current = []
@@ -551,6 +564,18 @@ export function useLiveTree(): LiveTree {
     })
 
     const api = {
+      /** Qué está haciendo la instalación ahora mismo. */
+      estado: () => ({
+        ideas: ideasRef.current.length,
+        propuestas: ideasRef.current.filter((i) => i.tipo !== 'critica').length,
+        criticas: ideasRef.current.filter((i) => i.tipo === 'critica').length,
+        tipos: [...new Set(ideasRef.current.map((i) => i.tipo ?? '(sin tipo)'))],
+        viajando: activeIdeaRef.current?.text ?? null,
+        cayendo: criticaCayendoRef.current?.text ?? null,
+        pulsoRaices: pulsoRef.current,
+        enCola: queueRef.current.length,
+        colaTipos: queueRef.current.map((i) => i.tipo ?? '(sin tipo)'),
+      }),
       propuesta: (texto = 'Más colectivos por la avenida Mate de Luna', cat = 'movilidad') =>
         enqueue([inventar(texto, cat, 'propuesta')]),
       critica: (texto = 'El municipio no limpia el barrio hace meses', cat = 'ambiente') =>

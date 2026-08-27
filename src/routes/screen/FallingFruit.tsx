@@ -209,19 +209,32 @@ export default function FallingFruit({ idea }: Props) {
 
   return (
     <group>
+      {/*
+        frustumCulled en false en todo el grupo.
+
+        Estas geometrías cambian de posición en cada cuadro y nunca se les
+        recalcula la esfera envolvente, así que Three.js las juzga por un
+        volumen que quedó en el origen con radio cero y las descarta antes
+        de dibujarlas. Journey hace lo mismo por la misma razón: sin esto
+        el fruto se ve pero la estela y la salpicadura no aparecen nunca.
+      */}
+
       {/* El fruto */}
-      <sprite ref={frutoRef} visible={false}>
+      <sprite ref={frutoRef} visible={false} frustumCulled={false}>
         <spriteMaterial
           map={glow}
           transparent
           depthWrite={false}
           blending={THREE.AdditiveBlending}
+          // Sin esto el mapeo de tonos apaga el resplandor y el fruto se
+          // pierde contra la copa. Journey usa el mismo ajuste.
+          toneMapped={false}
           opacity={0}
         />
       </sprite>
 
       {/* Estela de la caída */}
-      <points ref={estelaRef} geometry={estelaGeo} visible={false}>
+      <points ref={estelaRef} geometry={estelaGeo} visible={false} frustumCulled={false}>
         <pointsMaterial
           map={glow}
           size={0.07}
@@ -230,11 +243,18 @@ export default function FallingFruit({ idea }: Props) {
           opacity={0.7}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
+          toneMapped={false}
         />
       </points>
 
       {/* Onda en la tierra */}
-      <mesh ref={anilloRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} visible={false}>
+      <mesh
+        ref={anilloRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -0.02, 0]}
+        visible={false}
+        frustumCulled={false}
+      >
         <ringGeometry args={[0.42, 0.5, 48]} />
         <meshBasicMaterial
           transparent
@@ -242,11 +262,12 @@ export default function FallingFruit({ idea }: Props) {
           side={THREE.DoubleSide}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
+          toneMapped={false}
         />
       </mesh>
 
       {/* Energía repartiéndose por la base */}
-      <points ref={salpicaduraRef} geometry={salpicaduraGeo} visible={false}>
+      <points ref={salpicaduraRef} geometry={salpicaduraGeo} visible={false} frustumCulled={false}>
         <pointsMaterial
           map={glow}
           size={0.11}
@@ -255,6 +276,7 @@ export default function FallingFruit({ idea }: Props) {
           opacity={0}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
+          toneMapped={false}
         />
       </points>
     </group>
