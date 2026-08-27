@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { ipDe, permitir } from './_lib/limite'
-import { conversar, hayAlgunProveedor, type Mensaje } from './_lib/proveedor'
-import { esDelEquipo } from './_lib/sesion'
+import { ipDe, permitir } from './_lib/limite.js'
+import { conversar, hayAlgunProveedor, type Mensaje } from './_lib/proveedor.js'
+import { esDelEquipo } from './_lib/sesion.js'
 
 /**
  * Migue — asistente del panel de la Dirección de IA.

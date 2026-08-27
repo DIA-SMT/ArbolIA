@@ -1,4 +1,4 @@
-import { getClaude, hayClaveAnthropic, MODELO_ANTHROPIC } from './claude'
+import { getClaude, hayClaveAnthropic, MODELO_ANTHROPIC } from './claude.js'
 
 /**
  * De qué proveedor sale la inteligencia de la instalación.

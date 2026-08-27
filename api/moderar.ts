@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { ipDe, permitir } from './_lib/limite'
-import { clasificar, hayAlgunProveedor } from './_lib/proveedor'
+import { ipDe, permitir } from './_lib/limite.js'
+import { clasificar, hayAlgunProveedor } from './_lib/proveedor.js'
 
 /**
  * Moderación semántica de propuestas ciudadanas.
