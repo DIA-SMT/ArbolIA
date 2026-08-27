@@ -127,7 +127,8 @@ async function clasificarAnthropic(o: {
   esquema: Record<string, unknown>
   timeoutMs: number
 }): Promise<unknown> {
-  const respuesta = await getClaude().messages.create(
+  const claude = await getClaude()
+  const respuesta = await claude.messages.create(
     {
       model: MODELO_ANTHROPIC,
       max_tokens: 512,
@@ -252,7 +253,8 @@ async function conversarAnthropic(o: {
   alEmpezar: () => void
   onTexto: (fragmento: string) => void
 }): Promise<void> {
-  const stream = getClaude().messages.stream({
+  const claude = await getClaude()
+  const stream = claude.messages.stream({
     model: MODELO_ANTHROPIC,
     max_tokens: 8000,
     // El contexto va en un bloque aparte y marcado para caché: es la parte

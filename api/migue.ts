@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { ipDe, permitir } from './_lib/claude'
+import { ipDe, permitir } from './_lib/limite'
 import { conversar, hayAlgunProveedor, type Mensaje } from './_lib/proveedor'
 import { esDelEquipo } from './_lib/sesion'
 
