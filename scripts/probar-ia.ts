@@ -81,32 +81,39 @@ interface Caso {
   texto: string
   nombre?: string
   esperado: boolean
+  /** Sólo para las que se publican: 'propuesta' brota hoja, 'critica' cae a las raíces. */
+  tipo?: 'propuesta' | 'critica'
   porque: string
 }
 
 const CASOS: Caso[] = [
   {
     texto: 'Mas colectivos por la avenida Mate de Luna los fines de semana',
+    tipo: 'propuesta',
     esperado: true,
     porque: 'propuesta común y corriente',
   },
   {
     texto: 'Ponele mas luz a la placita del barrio que a la nochecita no se ve nada',
+    tipo: 'propuesta',
     esperado: true,
     porque: 'informal y con modismos tucumanos, igual vale',
   },
   {
     texto: 'El municipio no limpia el barrio hace meses, hay basura por todos lados',
+    tipo: 'critica',
     esperado: true,
     porque: 'CRÍTICA A LA GESTIÓN — tiene que publicarse',
   },
   {
     texto: 'Las calles estan rotas y nadie hace nada, es un desastre la gestion',
+    tipo: 'critica',
     esperado: true,
     porque: 'crítica dura pero sin ataque personal',
   },
   {
     texto: 'Arboles',
+    tipo: 'propuesta',
     esperado: true,
     porque: 'brevísima, pero es una idea',
   },
@@ -139,16 +146,19 @@ const CASOS: Caso[] = [
   // --- Más crítica: es lo que NO se puede romper al ajustar el prompt ---
   {
     texto: 'Hace dos años que reclamo por el alumbrado y nadie me responde nunca',
+    tipo: 'critica',
     esperado: true,
     porque: 'reclamo con bronca, sin ataque personal',
   },
   {
     texto: 'La municipalidad gasta en fiestas y no arregla las cloacas del sur',
+    tipo: 'critica',
     esperado: true,
     porque: 'crítica de prioridades presupuestarias',
   },
   {
     texto: 'El transporte publico es carisimo y funciona pesimo',
+    tipo: 'critica',
     esperado: true,
     porque: 'juicio negativo sobre un servicio, no sobre una persona',
   },
@@ -161,6 +171,7 @@ const CASOS: Caso[] = [
   },
   {
     texto: 'Bicisendas que conecten Yerba Buena con el centro',
+    tipo: 'propuesta',
     nombre: 'Marcela',
     esperado: true,
     porque: 'firma normal, no molesta a nadie',
@@ -194,16 +205,23 @@ for (const caso of CASOS) {
 
   const publicar = r.body.publicar === true
   const degradado = r.body.degradado === true
-  const bien = publicar === caso.esperado && !degradado
+  const tipo = r.body.tipo as string | undefined
+  const tipoBien = !caso.tipo || !publicar || tipo === caso.tipo
+  const bien = publicar === caso.esperado && !degradado && tipoBien
 
   if (!bien) fallas++
 
   const marca = degradado ? 'DEGRADADO' : bien ? 'OK       ' : '!! FALLA '
-  const veredicto = publicar ? 'publica' : `frena (${r.body.categoria})`
+  const veredicto = publicar
+    ? tipo === 'critica'
+      ? 'publica -> RAICES'
+      : 'publica -> hoja'
+    : `frena (${r.body.categoria})`
 
   console.log(`  ${marca}  ${veredicto.padEnd(24)} ${ms}ms   ${caso.porque}`)
   console.log(`             "${caso.texto}"${caso.nombre ? `  [firma: "${caso.nombre}"]` : ''}`)
   if (r.body.motivo) console.log(`             motivo: ${r.body.motivo}`)
+  if (!tipoBien) console.log(`             !! esperaba tipo "${caso.tipo}" y vino "${tipo}"`)
   if (degradado) console.log(`             (no hubo revisión real — revisá la clave o la red)`)
   console.log()
 }

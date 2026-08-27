@@ -32,6 +32,8 @@ export const AGE_RANGES: AgeOption[] = [
   { slug: '60mas', label: '60 o más' },
 ]
 
+export type TipoIdea = 'propuesta' | 'critica'
+
 export interface Idea {
   id: string
   text: string
@@ -41,6 +43,12 @@ export interface Idea {
   /** Opcional: quien no quiere firmar participa igual. */
   author_name?: string | null
   age_range?: AgeRange | null
+  /**
+   * Qué gesto es. 'propuesta' brota como hoja en su rama; 'critica' cae
+   * desde la copa y extiende las raíces. Las dos se guardan y las dos
+   * cuentan para la meta: lo único que cambia es dónde aparecen.
+   */
+  tipo?: TipoIdea
   /** Por qué quedó en la cola. Interno: sólo lo ve el panel. */
   revision_motivo?: string | null
   status: IdeaStatus
@@ -67,7 +75,12 @@ export interface CategoryCount {
 }
 
 export interface Stats {
+  /** Todas: la crítica participa igual que la propuesta y cuenta para la meta. */
   ideas: number
+  /** Las que brotan como hoja en las ramas. */
+  propuestas: number
+  /** Las que caen y extienden las raíces. */
+  criticas: number
   participants: number
   areas: number
   byCategory: CategoryCount[]

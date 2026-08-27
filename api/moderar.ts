@@ -51,12 +51,32 @@ Ante la duda SOBRE EL CONTENIDO, ACEPTÁ. Rechazar la propuesta legítima de un 
 
 Eso vale para juzgar contenido, no para decidir si el texto es una propuesta. Un texto sin significado no entra por la duda: se rechaza.
 
+---
+
+Además, si se publica, clasificá de qué tipo es. Esto NO decide si se publica: las dos se publican, y sólo cambia dónde aparecen en el árbol.
+
+- "propuesta": pide o imagina algo concreto para hacer en la ciudad.
+  "Más colectivos por Mate de Luna", "Plantar árboles en la avenida",
+  "Wifi en las plazas", "Que el 118 tenga rampa".
+  Brota como una hoja en las ramas.
+
+- "critica": señala algo que está mal, que falta o que no funciona, sin pedir
+  una acción concreta. Es un reclamo.
+  "El municipio no limpia el barrio hace meses", "Las calles están rotas y nadie
+  hace nada", "El transporte es carísimo y funciona pésimo", "Hace dos años que
+  reclamo y no me responden".
+  Cae desde la copa y fortalece las raíces del árbol, que son la comunidad.
+
+Si el texto hace las dos cosas —señala un problema Y pide algo concreto— es
+"propuesta". Ante la duda, "propuesta".
+
 Respondé únicamente con el JSON pedido, sin texto alrededor.`
 
 interface Veredicto {
   publicar: boolean
   motivo: string
   categoria: string
+  tipo: 'propuesta' | 'critica'
 }
 
 /*
@@ -89,14 +109,26 @@ const ESQUEMA = {
       type: 'string',
       description: 'Una oración breve para el equipo de moderación. En español rioplatense.',
     },
+    tipo: {
+      type: 'string',
+      enum: ['propuesta', 'critica'],
+      description:
+        'propuesta = pide algo concreto, brota como hoja. critica = señala un problema, cae y alimenta las raíces.',
+    },
   },
-  required: ['publicar', 'categoria', 'motivo'],
+  required: ['publicar', 'categoria', 'motivo', 'tipo'],
   additionalProperties: false,
 }
 
 /** Se deja pasar y decide el filtro determinista de la base. */
 function sinRevision(res: VercelResponse, motivo: string) {
-  return res.status(200).json({ publicar: true, categoria: 'ok', motivo, degradado: true })
+  // 'propuesta' es el degradado seguro: la idea brota como hoja, que es lo
+  // que pasaba antes de que existiera esta clasificacion. Si el degradado
+  // fuera 'critica', un corte de red dejaria la copa vacia y las raices
+  // creciendo solas — la instalacion se veria rota.
+  return res
+    .status(200)
+    .json({ publicar: true, categoria: 'ok', tipo: 'propuesta', motivo, degradado: true })
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -144,6 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       publicar: veredicto.publicar !== false,
       categoria: veredicto.categoria ?? 'ok',
+      tipo: veredicto.tipo === 'critica' ? 'critica' : 'propuesta',
       motivo: typeof veredicto.motivo === 'string' ? veredicto.motivo : '',
     })
   } catch (error) {

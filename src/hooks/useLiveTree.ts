@@ -263,6 +263,8 @@ export function useLiveTree(): LiveTree {
     setIdeas(history)
     setStats({
       ideas: history.length,
+      propuestas: history.filter((i) => i.tipo !== 'critica').length,
+      criticas: history.filter((i) => i.tipo === 'critica').length,
       participants: new Set(history.map((i) => i.device_id)).size,
       areas: 8,
       byCategory: demoCategoryCounts(history),

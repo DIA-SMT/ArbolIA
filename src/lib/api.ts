@@ -1,6 +1,6 @@
 import { requirePublic, requireSupabase, supabase } from './supabase'
 import { DEFAULT_CATEGORY } from './categories'
-import type { AgeRange, AgeStat, CategorySlug, Idea, IdeaStatus, Stats } from './types'
+import type { AgeRange, AgeStat, CategorySlug, Idea, IdeaStatus, Stats, TipoIdea } from './types'
 
 /**
  * Columnas que la pantalla puede leer.
@@ -10,13 +10,16 @@ import type { AgeRange, AgeStat, CategorySlug, Idea, IdeaStatus, Stats } from '.
  * municipio, y desde la migración 006 el rol anónimo directamente no tiene
  * permiso de leerlos — pedirlos acá haría fallar la consulta.
  */
-const COLUMNAS_PUBLICAS = 'id, text, category, status, archived_at, created_at'
+const COLUMNAS_PUBLICAS = 'id, text, category, status, archived_at, created_at, tipo'
 
 /** Cuantas ideas carga la pantalla al arrancar para reconstruir el arbol. */
 export const TREE_HISTORY_LIMIT = 900
 
 interface RawStats {
   ideas: number
+  /** Desde la migración 009. Antes de ella, ausentes. */
+  propuestas?: number
+  criticas?: number
   participants: number
   areas: number
   by_category: Array<{
@@ -30,6 +33,8 @@ interface RawStats {
 
 export const EMPTY_STATS: Stats = {
   ideas: 0,
+  propuestas: 0,
+  criticas: 0,
   participants: 0,
   areas: 8,
   byCategory: [],
@@ -43,6 +48,10 @@ export async function fetchStats(): Promise<Stats> {
   const raw = data as RawStats
   return {
     ideas: raw.ideas ?? 0,
+    // Si la migración 009 todavía no corrió, el RPC no devuelve estos dos.
+    // Se cae a "todo es propuesta", que es como se comportaba antes.
+    propuestas: raw.propuestas ?? raw.ideas ?? 0,
+    criticas: raw.criticas ?? 0,
     participants: raw.participants ?? 0,
     areas: raw.areas ?? 8,
     byCategory: (raw.by_category ?? []).map((c) => ({
@@ -104,6 +113,8 @@ export interface SubmitIdeaInput {
   revisar?: boolean
   /** Por qué. Queda en el panel, nunca se proyecta. */
   motivo?: string | null
+  /** 'critica' cae y alimenta las raíces; 'propuesta' brota como hoja. */
+  tipo?: TipoIdea
 }
 
 export type SubmitErrorCode = 'cooldown' | 'hourly_limit' | 'offline' | 'unknown'
@@ -140,30 +151,52 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<Idea> {
     p_age_range: input.ageRange ?? null,
   }
 
-  let { data, error } = await db.rpc('arbolia_submit_idea', {
-    ...base,
-    p_revisar: input.revisar === true,
-    p_motivo: input.motivo ?? null,
-  })
-
   /*
    * Ventana de despliegue.
    *
-   * PostgREST resuelve la función por los nombres de los parámetros que
-   * recibe. Si este frontend llega antes que la migración 008, la base
-   * todavía tiene la versión de cinco parámetros, ninguna coincide con los
-   * siete que mandamos y responde PGRST202.
+   * PostgREST resuelve la función por los NOMBRES de los parámetros que
+   * recibe: si mandamos uno que la función no tiene, ninguna versión
+   * coincide y responde PGRST202 en vez de ejecutar.
    *
-   * Se reintenta sin los parámetros nuevos. La propuesta entra igual y la
-   * modera el filtro de palabras, que es exactamente lo que había hasta
-   * ahora. Un orden de despliegue no puede dejar a un vecino sin participar.
+   * Por eso se intenta de la firma más nueva a la más vieja. El orden en
+   * que alguien haga dos tareas —migrar y desplegar— no puede dejar a un
+   * vecino del stand sin poder participar: en el peor caso la idea entra
+   * como entraba antes, y la modera el filtro de palabras de la base.
    */
-  if (error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message))) {
-    console.warn(
-      '[arbolia] Falta ejecutar supabase/migrations/008-revision-ia.sql: ' +
-        'la revisión semántica no puede derivar propuestas a la cola.',
-    )
-    ;({ data, error } = await db.rpc('arbolia_submit_idea', base))
+  const intentos: Array<{ falta: string; args: Record<string, unknown> }> = [
+    {
+      falta: '009-criticas.sql',
+      args: {
+        ...base,
+        p_revisar: input.revisar === true,
+        p_motivo: input.motivo ?? null,
+        p_tipo: input.tipo ?? 'propuesta',
+      },
+    },
+    {
+      falta: '008-revision-ia.sql',
+      args: { ...base, p_revisar: input.revisar === true, p_motivo: input.motivo ?? null },
+    },
+    { falta: '', args: base },
+  ]
+
+  let data: unknown = null
+  let error: { code?: string; message: string; hint?: string } | null = null
+
+  for (const intento of intentos) {
+    ;({ data, error } = await db.rpc('arbolia_submit_idea', intento.args))
+
+    const firmaInexistente =
+      error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message))
+
+    if (!firmaInexistente) break
+
+    if (intento.falta) {
+      console.warn(
+        `[arbolia] Falta ejecutar supabase/migrations/${intento.falta}. ` +
+          'Se reintenta sin los parámetros que introduce.',
+      )
+    }
   }
 
   if (error) {
@@ -189,10 +222,15 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<Idea> {
     category: CategorySlug
     status: IdeaStatus
     created_at: string
+    /** Ausente si la base todavía no tiene la migración 009. */
+    tipo?: TipoIdea
   }
 
   return {
     ...fila,
+    // Lo que diga la base manda. Si todavía no conoce el tipo, es una
+    // propuesta: brota como hoja, que es como se comportaba antes.
+    tipo: fila.tipo ?? 'propuesta',
     device_id: input.deviceId,
     archived_at: null,
   }
