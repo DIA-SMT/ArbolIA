@@ -1,3 +1,5 @@
+import type { TipoIdea } from './types'
+
 /**
  * Cliente de las funciones de IA que corren en el servidor.
  *
@@ -9,11 +11,25 @@
 export interface Veredicto {
   publicar: boolean
   motivo: string
+  /**
+   * Qué gesto es. 'propuesta' brota como hoja en su rama; 'critica' cae
+   * desde la copa y extiende las raíces. No decide si se publica: las dos
+   * se publican, y sólo cambia dónde aparecen en el árbol.
+   */
+  tipo: TipoIdea
   /** true si no hubo revisión real (sin configurar, sin red, o demorada). */
   degradado?: boolean
 }
 
-const SIN_REVISION: Veredicto = { publicar: true, motivo: '', degradado: true }
+/*
+ * Sin revisión, todo es propuesta.
+ *
+ * Es el degradado seguro: la idea brota como hoja, que es como se comportaba
+ * la instalación antes de que existiera esta distinción. Si el degradado
+ * fuera 'critica', un corte de red dejaría la copa vacía y las raíces
+ * creciendo solas — se vería rota delante del público.
+ */
+const SIN_REVISION: Veredicto = { publicar: true, motivo: '', tipo: 'propuesta', degradado: true }
 
 /**
  * Revisión semántica previa al envío.
@@ -47,6 +63,7 @@ export async function revisarPropuesta(
     return {
       publicar: datos.publicar !== false,
       motivo: typeof datos.motivo === 'string' ? datos.motivo : '',
+      tipo: datos.tipo === 'critica' ? 'critica' : 'propuesta',
       degradado: datos.degradado === true,
     }
   } catch {

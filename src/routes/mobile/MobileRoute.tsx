@@ -27,6 +27,15 @@ export default function MobileRoute() {
   const [phase, setPhase] = useState<Phase>('form')
   const [error, setError] = useState<string | null>(null)
   const [position, setPosition] = useState<number | null>(null)
+  /*
+   * Qué terminó siendo la idea enviada.
+   *
+   * Cambia lo que dice la confirmación. Decirle "tu hoja está brotando" a
+   * alguien que dejó un reclamo sería mentirle: su idea no va a la copa.
+   * Y quedarse callado sería peor — miraría la pantalla buscando una hoja
+   * que no existe y se iría pensando que no entró.
+   */
+  const [tipoEnviado, setTipoEnviado] = useState<'propuesta' | 'critica'>('propuesta')
 
   const deviceId = useMemo(() => getDeviceId(), [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -98,8 +107,12 @@ export default function MobileRoute() {
         ageRange: edad,
         revisar: !revision.publicar,
         motivo: revision.publicar ? null : revision.motivo,
+        // Propuesta o reclamo: define si la idea brota como hoja en su
+        // rama o si cae desde la copa y extiende las raíces.
+        tipo: revision.tipo,
       })
       rememberSentIdea(idea.id)
+      setTipoEnviado(idea.tipo === 'critica' ? 'critica' : 'propuesta')
 
       if (idea.status !== 'visible') {
         // El filtro del servidor la marcó para revisión. No le decimos que
@@ -129,6 +142,7 @@ export default function MobileRoute() {
 
   function reset() {
     setText('')
+    setTipoEnviado('propuesta')
     setCategory(DEFAULT_CATEGORY)
     // La edad y el nombre se conservan: si la misma persona deja otra idea,
     // volver a preguntárselo es fricción sin sentido.
@@ -271,7 +285,11 @@ export default function MobileRoute() {
         <main className="panel panel--center" data-active={phase === 'done'}>
           <LeafMark color={chosen.color} />
 
-          <h2 className="done__title">¡Tu idea ya es parte del árbol!</h2>
+          <h2 className="done__title">
+            {tipoEnviado === 'critica'
+              ? '¡Tu reclamo llegó al árbol!'
+              : '¡Tu idea ya es parte del árbol!'}
+          </h2>
 
           {position !== null && (
             <p className="done__position">
@@ -279,7 +297,11 @@ export default function MobileRoute() {
             </p>
           )}
 
-          <p className="done__hint">Mirá la pantalla: tu hoja está brotando ahora.</p>
+          <p className="done__hint">
+            {tipoEnviado === 'critica'
+              ? 'Mirá la pantalla: tu reclamo cae desde la copa y fortalece las raíces del árbol, que somos todos.'
+              : 'Mirá la pantalla: tu hoja está brotando ahora.'}
+          </p>
 
           <div className="done__tag" style={{ ['--chip' as string]: chosen.color }}>
             <span>{chosen.emoji}</span>

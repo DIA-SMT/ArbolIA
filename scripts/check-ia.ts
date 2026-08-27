@@ -164,12 +164,68 @@ await conFetch(
 
 globalThis.fetch = async () =>
   new Response(
-    JSON.stringify({ publicar: false, motivo: 'Acusa a una persona con nombre.' }),
+    JSON.stringify({ publicar: false, motivo: 'Acusa a una persona con nombre.', tipo: 'propuesta' }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   )
 const rechazo = await revisarPropuesta('Fulano de Obras cobra por cada habilitación')
 globalThis.fetch = fetchOriginal
 ok('un veredicto negativo se transmite con su motivo', !rechazo.publicar && rechazo.motivo.length > 0)
+
+/* ------------------------------------------------------------------ */
+console.log('\nEL TIPO LLEGA HASTA LA BASE')
+
+/*
+ * Este tramo estuvo roto y nadie se enteraba: la función de servidor
+ * clasificaba bien, pero el tipo no cruzaba al cliente ni se pasaba al
+ * envío. Cada reclamo real entraba como propuesta y la caída no se
+ * disparaba nunca. Es un eslabón que se corta sin ruido.
+ */
+async function conRespuesta(cuerpo: Record<string, unknown>) {
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify(cuerpo), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  try {
+    return await revisarPropuesta('El municipio no limpia el barrio hace meses')
+  } finally {
+    globalThis.fetch = fetchOriginal
+  }
+}
+
+const critica = await conRespuesta({ publicar: true, motivo: '', tipo: 'critica' })
+ok('una crítica llega al cliente como crítica', critica.tipo === 'critica', critica.tipo)
+
+const propuesta = await conRespuesta({ publicar: true, motivo: '', tipo: 'propuesta' })
+ok('una propuesta llega como propuesta', propuesta.tipo === 'propuesta', propuesta.tipo)
+
+const sinTipo = await conRespuesta({ publicar: true, motivo: '' })
+ok('si el servidor no manda tipo, cae a propuesta', sinTipo.tipo === 'propuesta')
+
+const basura = await conRespuesta({ publicar: true, motivo: '', tipo: 'cualquier-cosa' })
+ok('un tipo desconocido cae a propuesta', basura.tipo === 'propuesta')
+
+const caido = await (async () => {
+  globalThis.fetch = async () => {
+    throw new Error('Failed to fetch')
+  }
+  try {
+    return await revisarPropuesta('x y z')
+  } finally {
+    globalThis.fetch = fetchOriginal
+  }
+})()
+ok('sin red también cae a propuesta, no a crítica', caido.tipo === 'propuesta')
+
+// Y el formulario tiene que pasárselo a submitIdea. Sin esto, todo lo de
+// arriba puede estar bien y la base recibir siempre 'propuesta'.
+const movil = readFileSync('src/routes/mobile/MobileRoute.tsx', 'utf8')
+ok(
+  'el formulario le pasa el tipo a submitIdea',
+  movil.includes('tipo: revision.tipo'),
+)
+const apiSrc = readFileSync('src/lib/api.ts', 'utf8')
+ok('submitIdea se lo manda al RPC', apiSrc.includes('p_tipo: input.tipo'))
 
 /* ------------------------------------------------------------------ */
 console.log('\nEL REENVÍO DE VERCEL NO SE COME /api')
