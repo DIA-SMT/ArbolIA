@@ -139,6 +139,94 @@ console.log('\nROTACIÓN DE ETIQUETAS')
   )
 }
 
+// --- Una vuelta y listo ----------------------------------------------
+{
+  /*
+   * Con pocas propuestas cargadas, las mismas tres cards giraban entre
+   * ellas para siempre y la pantalla se leía como congelada. Ahora cada
+   * idea hace UN turno por ronda: cuando se agotan, los slots se vacían y
+   * la copa queda limpia hasta que empiece la ronda siguiente.
+   */
+  const pool = makeIdeas(3)
+  const mostradas = new Set<string>()
+  let cursor = 0
+  const salieron: string[] = []
+
+  for (let i = 0; i < 12; i++) {
+    const elegida = pickNextIdea(pool, new Set(), cursor, mostradas)
+    if (!elegida) break
+    cursor = elegida.cursor
+    mostradas.add(elegida.idea.id)
+    salieron.push(elegida.idea.id)
+  }
+
+  check(
+    'con 3 ideas salen 3 y se termina la ronda',
+    salieron.length === 3,
+    `salieron ${salieron.length}`,
+  )
+  check(
+    'ninguna repite dentro de la ronda',
+    new Set(salieron).size === salieron.length,
+    salieron.join(', '),
+  )
+  check(
+    'agotada la ronda devuelve null: el slot se vacía',
+    pickNextIdea(pool, new Set(), cursor, mostradas) === null,
+  )
+}
+
+{
+  // Empezar una ronda nueva es vaciar la memoria. Después vuelven todas.
+  const pool = makeIdeas(4)
+  const mostradas = new Set(pool.map((i) => i.id))
+  check(
+    'con la ronda agotada no hay candidata',
+    pickNextIdea(pool, new Set(), 0, mostradas) === null,
+  )
+
+  mostradas.clear()
+  check(
+    'tras el descanso vuelve a haber candidatas',
+    pickNextIdea(pool, new Set(), 0, mostradas) !== null,
+  )
+}
+
+{
+  // Una idea nueva que llega con la ronda agotada sí tiene que poder salir.
+  const pool = makeIdeas(3)
+  const mostradas = new Set(pool.map((i) => i.id))
+  const nueva = { ...pool[0], id: 'idea-nueva', text: 'recién llegada' }
+  const conNueva = [...pool, nueva]
+
+  const elegida = pickNextIdea(conNueva, new Set(), 0, mostradas)
+  check(
+    'una propuesta nueva sale aunque la ronda esté agotada',
+    elegida?.idea.id === 'idea-nueva',
+    elegida?.idea.id ?? 'ninguna',
+  )
+}
+
+{
+  // La memoria de la ronda no puede tapar el otro invariante: nunca dos
+  // etiquetas con la misma idea al mismo tiempo.
+  const pool = makeIdeas(10)
+  const mostradas = new Set<string>()
+  const visibles = new Set<string>()
+  let cursor = 0
+  let choques = 0
+
+  for (let i = 0; i < 10; i++) {
+    const elegida = pickNextIdea(pool, visibles, cursor, mostradas)
+    if (!elegida) break
+    if (visibles.has(elegida.idea.id)) choques++
+    visibles.add(elegida.idea.id)
+    mostradas.add(elegida.idea.id)
+    cursor = elegida.cursor
+  }
+  check('sigue sin repetir entre slots visibles', choques === 0, `${choques} choques`)
+}
+
 console.log(
   failures === 0
     ? '\nLa rotación de etiquetas se comporta como se espera.\n'

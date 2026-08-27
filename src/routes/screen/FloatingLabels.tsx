@@ -12,6 +12,19 @@ import type { Idea } from '../../lib/types'
 const SLOT_COUNT = 3
 /** Cada cuánto rota UNA etiqueta. Con 3 slots, cada una dura ~21 s. */
 const ROTATE_MS = 7000
+/**
+ * Cuánto queda la copa limpia entre una ronda y la siguiente.
+ *
+ * Cada propuesta se muestra una vez por ronda. Cuando se agotan, las
+ * etiquetas se vacían en vez de volver a girar entre las mismas: con pocas
+ * ideas cargadas eso se leía como una pantalla congelada.
+ *
+ * Pero tampoco puede quedar muda toda la mañana si el flujo es lento, así
+ * que después de este descanso arranca una ronda nueva con lo que haya.
+ * Una idea repetida tras tres minutos de silencio no se lee como trabada:
+ * se lee como que el árbol la está recordando.
+ */
+const DESCANSO_MS = 180_000
 /** Cada cuánto se recalcula el "Hace N min". */
 const CLOCK_MS = 30_000
 /** Cuánto se separa cada etiqueta del follaje, por slot. */
@@ -86,6 +99,10 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
   ideasRef.current = ideas
 
   const cursorRef = useRef(0)
+  /** Las que ya tuvieron su turno en la ronda actual. */
+  const mostradasRef = useRef<Set<string>>(new Set())
+  /** Desde cuándo no hay ninguna etiqueta en pantalla, o null. */
+  const vacioDesdeRef = useRef<number | null>(null)
   const nextSlotRef = useRef(0)
   const rotateSlotRef = useRef(0)
   const revisionRef = useRef(0)
@@ -100,11 +117,22 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
     registro.current[slot] = entrada
   }, [])
 
+  /*
+   * Espejo del estado para poder decidir FUERA del actualizador.
+   *
+   * El descanso entre rondas necesita leer si todas las etiquetas están
+   * vacías y tocar refs. Hacer eso dentro de setSlots sería un efecto
+   * secundario en una función que React puede volver a ejecutar.
+   */
+  const slotsRef = useRef(slots)
+  slotsRef.current = slots
+
   // ---- Colocación y colisiones, en un solo lugar ---------------------
   useLayoutResolver(registro)
 
   // ---- Rotación y ciclo de vida de los slots -------------------------
   const assign = useCallback((slotIndex: number, idea: Idea, fresh: boolean) => {
+    mostradasRef.current.add(idea.id)
     revisionRef.current += 1
     const revision = revisionRef.current
     setSlots((prev) =>
@@ -115,11 +143,24 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
   useEffect(() => {
     setSlots((prev) => {
       if (prev.some((s) => s.idea)) return prev
+      /*
+       * Sólo en el arranque de verdad.
+       *
+       * "Todos los slots vacíos" ya no significa "recién cargó": ahora
+       * también es el descanso entre rondas. Sin esta condición, una idea
+       * nueva llegando durante el descanso rellenaría las tres etiquetas
+       * con las últimas del histórico, repitiendo las que ya tuvieron su
+       * turno.
+       */
+      if (mostradasRef.current.size > 0) return prev
+
       const recent = ideasRef.current.slice(-SLOT_COUNT)
       if (recent.length === 0) return prev
 
       revisionRef.current += recent.length
       cursorRef.current = recent.length
+
+      recent.forEach((i) => mostradasRef.current.add(i.id))
 
       return prev.map((slot, i) => {
         const idea = recent[recent.length - 1 - i]
@@ -142,6 +183,18 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
 
     const slotIndex = nextSlotRef.current % SLOT_COUNT
     nextSlotRef.current = slotIndex + 1
+
+    /*
+     * La rotación sigue desde el slot SIGUIENTE al que acaba de recibirla.
+     *
+     * Sin esto, una idea recién llegada podía caer justo en el slot que
+     * estaba por rotar y durarle un solo tic: aparecía y a los siete
+     * segundos ya no estaba. Es el peor momento posible para que eso pase,
+     * porque quien acaba de enviarla está mirando la pantalla buscándola.
+     * Corriendo el turno, se lleva la vuelta entera.
+     */
+    rotateSlotRef.current = slotIndex + 1
+
     assign(slotIndex, newest, true)
   }, [ideas, assign])
 
@@ -163,20 +216,50 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
       return prev.map((slot) => {
         if (!slot.idea || vigentes.has(slot.idea.id)) return slot
 
-        const reemplazo = pickNextIdea(ideas, visibles, cursorRef.current)
+        const reemplazo = pickNextIdea(ideas, visibles, cursorRef.current, mostradasRef.current)
         revisionRef.current += 1
 
         if (!reemplazo) return { idea: null, fresh: false, revision: revisionRef.current }
 
         cursorRef.current = reemplazo.cursor
+        mostradasRef.current.add(reemplazo.idea.id)
         visibles.add(reemplazo.idea.id)
         return { idea: reemplazo.idea, fresh: false, revision: revisionRef.current }
       })
     })
   }, [ideas])
 
+  /*
+   * Rotación por rondas.
+   *
+   * Cada propuesta hace UN turno por ronda. Cuando le llega el momento a
+   * un slot, se busca una que todavía no haya salido; si no queda ninguna,
+   * el slot se vacía. Antes se volvía a elegir del histórico completo, así
+   * que con tres ideas cargadas las mismas tres cards giraban entre ellas
+   * para siempre y la pantalla parecía trabada.
+   *
+   * Con la copa ya limpia, arranca el descanso. Pasados unos minutos se
+   * borra la memoria de la ronda y empieza otra.
+   */
   useEffect(() => {
     const timer = window.setInterval(() => {
+      const actuales = slotsRef.current
+      const copaLimpia = actuales.every((s) => !s.idea)
+
+      if (copaLimpia) {
+        if (vacioDesdeRef.current === null) {
+          vacioDesdeRef.current = Date.now()
+          return
+        }
+        if (Date.now() - vacioDesdeRef.current < DESCANSO_MS) return
+
+        // Se terminó el descanso: ronda nueva.
+        mostradasRef.current.clear()
+        vacioDesdeRef.current = null
+      } else {
+        vacioDesdeRef.current = null
+      }
+
       setSlots((prev) => {
         const slotIndex = rotateSlotRef.current % SLOT_COUNT
         rotateSlotRef.current = slotIndex + 1
@@ -187,12 +270,23 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
         const saliente = prev[slotIndex].idea
         if (saliente) visibles.delete(saliente.id)
 
-        const elegida = pickNextIdea(ideasRef.current, visibles, cursorRef.current)
-        if (!elegida) return prev
-        cursorRef.current = elegida.cursor
+        const elegida = pickNextIdea(
+          ideasRef.current,
+          visibles,
+          cursorRef.current,
+          mostradasRef.current,
+        )
 
         revisionRef.current += 1
         const revision = revisionRef.current
+
+        // Sin candidata, el turno se termina y no lo reemplaza nadie.
+        if (!elegida) {
+          if (!saliente) return prev
+          return prev.map((slot, i) => (i === slotIndex ? { idea: null, fresh: false, revision } : slot))
+        }
+
+        cursorRef.current = elegida.cursor
 
         return prev.map((slot, i) =>
           i === slotIndex ? { idea: elegida.idea, fresh: false, revision } : slot,

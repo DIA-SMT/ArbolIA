@@ -17,12 +17,19 @@ export interface PickResult {
  *    la mañana vuelve a aparecer a la tarde, en vez de perderse para
  *    siempre a los pocos segundos de haber llegado.
  *
- * Devuelve null si no hay ninguna candidata (menos ideas que slots).
+ * `mostradas` son las que ya tuvieron su turno en la ronda actual. Se
+ * saltean, así cada propuesta se muestra UNA vez por ronda y no queda
+ * girando entre las mismas tres cuando no llega nada nuevo — con pocas
+ * ideas cargadas, eso se leía como una pantalla congelada.
+ *
+ * Devuelve null si no queda ninguna candidata: ahí el slot se vacía y la
+ * copa queda limpia hasta que empiece la ronda siguiente.
  */
 export function pickNextIdea(
   pool: Idea[],
   visibleIds: Set<string>,
   cursor: number,
+  mostradas?: ReadonlySet<string>,
 ): PickResult | null {
   if (pool.length === 0) return null
 
@@ -33,7 +40,7 @@ export function pickNextIdea(
     // offset 0 = la más nueva.
     const candidate = pool[pool.length - 1 - offset]
 
-    if (candidate && !visibleIds.has(candidate.id)) {
+    if (candidate && !visibleIds.has(candidate.id) && !mostradas?.has(candidate.id)) {
       return { idea: candidate, cursor: (offset + 1) % pool.length }
     }
   }
