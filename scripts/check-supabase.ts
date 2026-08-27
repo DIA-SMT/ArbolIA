@@ -65,12 +65,38 @@ if (!key || key === 'PEGAR_ACA' || key.length < 20) {
   process.exit(1)
 }
 
-// Salvaguarda: la service_role saltea RLS por completo. Si termina en el
-// bundle del navegador, cualquiera puede leer y borrar toda la base.
-if (key.includes('service_role') || key.startsWith('sb_secret_')) {
-  console.error('\n  ⚠  Esa parece ser la clave service_role o secret.')
-  console.error('  Nunca va en el .env de una app de navegador: saltea RLS')
-  console.error('  y quedaría expuesta en el bundle. Usá la anon / publishable.\n')
+/*
+ * Salvaguarda: la service_role saltea RLS por completo. Si termina en una
+ * variable VITE_, Vite la incrusta en el JavaScript que descarga cada
+ * visitante y cualquiera puede leer, editar y borrar toda la base.
+ *
+ * Se decodifica el rol en vez de buscar el texto. Un JWT lleva el payload
+ * en base64, así que la cadena "service_role" NO aparece literalmente en la
+ * clave: la versión anterior de este guard buscaba con includes() y dejaba
+ * pasar exactamente la clave que existe para frenar.
+ */
+function rolDe(clave: string): string | null {
+  const partes = clave.split('.')
+  if (partes.length !== 3) return null
+  try {
+    return JSON.parse(Buffer.from(partes[1], 'base64').toString()).role ?? null
+  } catch {
+    return null
+  }
+}
+
+const rol = rolDe(key)
+
+if (rol === 'service_role' || key.startsWith('sb_secret_')) {
+  console.error('\n  ⚠  Esa es la clave service_role / secret.')
+  console.error('  Nunca va en una variable VITE_: saltea RLS por completo y')
+  console.error('  quedaría dentro del JavaScript que descarga cada visitante.')
+  console.error('  Supabase → Project Settings → API → anon / public\n')
+  process.exit(1)
+}
+
+if (rol && rol !== 'anon') {
+  console.error(`\n  ⚠  La clave tiene rol "${rol}", y acá sólo corresponde "anon".\n`)
   process.exit(1)
 }
 
