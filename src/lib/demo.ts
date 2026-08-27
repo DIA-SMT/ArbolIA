@@ -5,7 +5,7 @@ import type { CategorySlug, Idea } from './types'
  * Modo demo: ideas simuladas para trabajar el 3D sin backend y para tener
  * algo digno en pantalla si en ExpoCom se corta la conexion antes de abrir.
  */
-const SAMPLES: Array<{ text: string; category: CategorySlug }> = [
+const SAMPLES: Array<{ text: string; category: CategorySlug; tipo?: 'critica' }> = [
   { text: 'Más espacios verdes en cada barrio', category: 'ambiente' },
   { text: 'Ciclovías seguras que conecten el centro con Yerba Buena', category: 'movilidad' },
   { text: 'Recuperar la Plaza Independencia para eventos de noche', category: 'espacios' },
@@ -30,6 +30,23 @@ const SAMPLES: Array<{ text: string; category: CategorySlug }> = [
   { text: 'Peatonalizar más cuadras del centro los domingos', category: 'urbanismo' },
   { text: 'Sensores de calidad del aire abiertos al público', category: 'tecnologia' },
   { text: 'Más canchas y espacios deportivos abiertos', category: 'espacios' },
+
+  /*
+   * Reclamos.
+   *
+   * Sin estos, el modo demo no muestra nunca la mitad de la instalación:
+   * las propuestas brotan como hojas y las raíces crecen solas, pero no se
+   * ve caer un solo fruto. Y eso es justo lo que hay que poder calibrar
+   * antes del armado, porque es el gesto nuevo.
+   *
+   * Uno de cada seis, más o menos como se espera que llegue en el stand:
+   * la gente propone más de lo que reclama, pero reclama.
+   */
+  { text: 'El municipio no limpia el barrio hace meses', category: 'ambiente', tipo: 'critica' },
+  { text: 'Las calles están rotas y nadie hace nada', category: 'urbanismo', tipo: 'critica' },
+  { text: 'El colectivo pasa cada cuarenta minutos y viene lleno', category: 'transporte', tipo: 'critica' },
+  { text: 'Hace dos años que reclamo por el alumbrado y no me responden', category: 'espacios', tipo: 'critica' },
+  { text: 'La app del municipio no anda nunca', category: 'tecnologia', tipo: 'critica' },
 ]
 
 let demoCounter = 0
@@ -45,6 +62,7 @@ export function makeDemoIdea(index = demoCounter++): Idea {
     status: 'visible',
     archived_at: null,
     created_at: new Date(Date.now() - (500 - index) * 1000).toISOString(),
+    tipo: sample.tipo ?? 'propuesta',
   }
 }
 
