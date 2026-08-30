@@ -5,3 +5,6 @@ dist
 .vercel
 *.log
 .DS_Store
+
+# Mediciones sueltas: scratch, no forma parte del proyecto.
+scripts/_*
