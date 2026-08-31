@@ -18,7 +18,8 @@
     "typecheck:api": "tsc --noEmit -p api/tsconfig.json",
     "check:ia": "esbuild scripts/check-ia.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-ia.mjs --log-level=error && node node_modules/.cache/check-ia.mjs",
     "probar:ia": "esbuild scripts/probar-ia.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/probar-ia.mjs --log-level=error && node node_modules/.cache/probar-ia.mjs",
-    "check:criticas": "node scripts/correr.mjs scripts/check-criticas.ts"
+    "check:criticas": "node scripts/correr.mjs scripts/check-criticas.ts",
+    "check:equipo": "node scripts/correr.mjs scripts/check-equipo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
