@@ -138,6 +138,40 @@
   transition: background 500ms ease;
 }
 
+/*
+ * En claro, el color del área no puede ir crudo.
+ *
+ * Los ocho colores están elegidos para brillar sobre fondo profundo, y
+ * sobre blanco varios desaparecen: medido acá, movilidad daba 1.38 de
+ * contraste y tecnología 1.46, con 3.0 de mínimo para un título de este
+ * tamaño. El nombre de la ciudad, que es lo primero que lee el vecino,
+ * quedaba en amarillo sobre blanco.
+ *
+ * La mezcla se hace en el elemento y no en un token de :root a propósito:
+ * --pick lo define cada categoría más abajo en el árbol, así que un
+ * color-mix declarado en :root leería el --pick de :root y no el de la
+ * categoría elegida.
+ *
+ * 45 % deja la peor de las ocho en 4.51 —pasa incluso el mínimo de texto
+ * chico— y conserva el tinte del área bien visible. Si el navegador no
+ * entiende color-mix, esta regla se descarta entera y queda la de arriba.
+ */
+:root[data-tema='claro'] .mob__title span {
+  /*
+   * background-IMAGE, no el atajo background.
+   *
+   * El atajo reinicia background-clip a border-box. Como esta regla tiene
+   * más especificidad que la de arriba, le pisaba el background-clip: text
+   * y el título, que se pinta con color transparent, quedaba directamente
+   * invisible sobre fondo claro.
+   */
+  background-image: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--pick) 45%, var(--text-hi)),
+    var(--mob-titulo-brillo, #0e8a5f)
+  );
+}
+
 .mob__form {
   display: flex;
   flex-direction: column;

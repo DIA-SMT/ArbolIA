@@ -978,3 +978,26 @@
   background: var(--smt-verde-claro);
   box-shadow: 0 0 8px var(--smt-verde-claro);
 }
+
+/* =====================================================================
+   Ajustes de contraste del modo claro
+
+   El overlay va sobre el lienzo 3D, así que su fondo real no es el de la
+   página sino lo que el árbol esté pintando debajo. En claro eso es casi
+   blanco, y dos textos quedaban por debajo del mínimo legible: medidos
+   sobre el píxel efectivamente renderizado daban 3.89 y 2.54, contra 4.5.
+
+   Se corrigen sólo estos dos y sólo en claro. El modo oscuro, que es el
+   que se proyecta en la feria, ya pasaba y no se toca.
+   ===================================================================== */
+
+:root[data-tema='claro'] .overlay__event-name {
+  /* Hereda --text-low, que sobre un fondo casi blanco no alcanza. */
+  color: var(--text-mid);
+}
+
+:root[data-tema='claro'] .goal__stage {
+  /* El verde de marca es un acento para fondo profundo; sobre blanco el
+     que corresponde es el verde de papel del manual. */
+  color: var(--texto-hero);
+}

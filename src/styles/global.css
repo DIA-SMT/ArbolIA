@@ -41,7 +41,10 @@
 
   --text-hi: #eef5fc;
   --text-mid: rgba(214, 231, 245, 0.72);
-  --text-low: rgba(184, 208, 230, 0.46);
+  /* 0.46 daba 3.33 de contraste sobre el fondo del stand, contra 4.5 de
+     minimo. El modo oscuro es el que corre en el LED y en la mayoria de
+     los celulares, asi que era el que mas importaba. Con 0.62 da 5.22. */
+  --text-low: rgba(184, 208, 230, 0.62);
 
   /* Verde institucional como acento principal: está entre los acentos
      permitidos y es el que corresponde a un árbol que crece. */
@@ -104,8 +107,8 @@
      --------------------------------------------------------------- */
   --mob-fondo-alto: #0d2030;
   --mob-fondo-bajo: #05090f;
-  --mob-kicker: rgba(190, 215, 235, 0.35);
-  --mob-placeholder: rgba(190, 215, 235, 0.34);
+  --mob-kicker: rgba(190, 215, 235, 0.62);
+  --mob-placeholder: rgba(190, 215, 235, 0.6);
   --mob-campo: rgba(10, 20, 32, 0.72);
   --mob-chip-fondo: rgba(10, 20, 32, 0.6);
   --mob-error-texto: #fecdd3;
@@ -177,7 +180,17 @@
 
   --text-hi: #10233d;
   --text-mid: #33414f;
-  --text-low: rgba(51, 65, 79, 0.62);
+  /*
+   * 0.62 se veía elegante y no llegaba: medido sobre el fondo más claro
+   * que existe en la app —una tarjeta casi blanca— daba 3.54 de contraste,
+   * contra 4.5 de mínimo. Y no era un caso aislado: este token pinta el
+   * texto secundario en 31 lugares, entre ellos las etiquetas "Área" y "Tu
+   * edad" y el aviso de privacidad del formulario del vecino.
+   *
+   * Con 0.75 queda en 5.01 en ese mismo peor caso y sigue leyéndose como
+   * texto secundario, que es para lo que está.
+   */
+  --text-low: rgba(51, 65, 79, 0.75);
 
   /* El verde claro pierde contra el blanco: sobre papel el acento es el
      verde pleno. El resto de la marca se mantiene. */
@@ -223,8 +236,10 @@
   /* Las mismas superficies, sobre papel. */
   --mob-fondo-alto: #ffffff;
   --mob-fondo-bajo: #eef4fa;
-  --mob-kicker: rgba(51, 65, 79, 0.62);
-  --mob-placeholder: rgba(51, 65, 79, 0.55);
+  /* Mismo caso que --text-low: 0.62 daba 3.54 sobre la tarjeta clara. */
+  --mob-kicker: rgba(51, 65, 79, 0.75);
+  /* El placeholder tambien es texto: a 0.55 no llegaba al minimo. */
+  --mob-placeholder: rgba(51, 65, 79, 0.72);
   --mob-campo: #ffffff;
   --mob-chip-fondo: rgba(255, 255, 255, 0.86);
   --mob-error-texto: #b91c1c;

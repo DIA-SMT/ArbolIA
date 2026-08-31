@@ -19,7 +19,7 @@ import { GOAL_FALLBACK } from '../../lib/config'
 import { CATEGORIES, getCategory } from '../../lib/categories'
 import type { CategorySlug, Idea, IdeaStatus, Stats } from '../../lib/types'
 import BotonTema from '../../components/BotonTema'
-import { useTema } from '../../lib/tema'
+import { useTema, type Tema } from '../../lib/tema'
 import './admin.css'
 
 const REFRESH_MS = 45_000
@@ -38,6 +38,17 @@ type StatusFilter = IdeaStatus | 'all' | 'archivadas'
 
 export default function AdminRoute() {
   const [session, setSession] = useState<'checking' | 'out' | 'in'>('checking')
+
+  /*
+   * El tema se resuelve acá y no dentro del panel.
+   *
+   * Estaba dentro de Dashboard, que recién se monta DESPUÉS de entrar, así
+   * que la pantalla de ingreso nunca llegaba a aplicarlo: con el sistema en
+   * claro salía oscura igual, y al validar la sesión el panel entero saltaba
+   * de golpe al otro fondo. Acá cubre los tres estados —verificando, ingreso
+   * y panel— desde el primer pintado.
+   */
+  const [tema, alternarTema] = useTema()
 
   useEffect(() => {
     document.body.dataset.route = 'admin'
@@ -69,7 +80,7 @@ export default function AdminRoute() {
 
   if (session === 'out') return <LoginPanel />
 
-  return <Dashboard />
+  return <Dashboard tema={tema} alternarTema={alternarTema} />
 }
 
 // ---------------------------------------------------------------------
@@ -144,9 +155,7 @@ function LoginPanel() {
 // Panel
 // ---------------------------------------------------------------------
 
-function Dashboard() {
-  // El panel es donde el equipo pasa horas, casi siempre de día.
-  const [tema, alternarTema] = useTema()
+function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => void }) {
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [category, setCategory] = useState<CategoryFilter>('all')
