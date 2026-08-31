@@ -43,6 +43,18 @@ export interface Twig {
   /** Tramo de uv.x que ocupa: define cuándo aparece al crecer. */
   uvStart: number
   uvEnd: number
+  /**
+   * Tramo de voladizo que ocupa: define cuánto se dobla con el viento.
+   *
+   * Va aparte de uvStart/uvEnd porque las dos coordenadas quieren cosas
+   * distintas. El crecimiento necesita que todas las ramas de un mismo
+   * nivel aparezcan juntas, así que uv.x está cuantizado por nivel. El
+   * viento necesita lo contrario: que una hija arranque exactamente en el
+   * valor que tiene su madre en la axila donde nace, que está a mitad de
+   * camino. Un solo número no puede cumplir las dos.
+   */
+  spanStart: number
+  spanEnd: number
   /** Índice del twig padre dentro de la misma rama; -1 si nace del tronco. */
   parent: number
   /** Punto de la curva del padre donde nace. */
@@ -57,6 +69,8 @@ export interface LeafSlot {
   /** Índice del twig del que cuelga. */
   twig: number
   t: number
+  /** Flexión de la ramita justo acá: la hoja usa el mismo número. */
+  flex: number
 }
 
 export interface RootCurve {
@@ -76,6 +90,8 @@ export interface AmbientSlot {
   branch: number
   /** 0 = borde exterior del racimo, 1 = centro. Modula el sombreado. */
   depth: number
+  /** Flexión de la ramita que sostiene el racimo. */
+  flex: number
 }
 
 export interface BranchGeometry {
@@ -242,6 +258,8 @@ interface GrowInput {
   level: number
   parent: number
   parentT: number
+  /** Voladizo heredado: lo que vale la madre justo en esta axila. */
+  spanStart: number
   out: Twig[]
 }
 
@@ -253,7 +271,17 @@ interface GrowInput {
  * punta con un ángulo de divergencia variable, nunca el mismo dos veces.
  */
 function grow(input: GrowInput): void {
-  const { rng, origin, direction, length, radius, level, parent, parentT, out } = input
+  const { rng, origin, direction, length, radius, level, parent, parentT, spanStart, out } = input
+
+  /*
+   * Reparto del voladizo que queda.
+   *
+   * Cada nivel se queda con una parte de lo que va del punto donde nace
+   * hasta 1. Al último nivel le toca todo lo que sobra, así las puntas
+   * llegan justo a 1 y ninguna rama termina a mitad de camino.
+   */
+  const restantes = MAX_LEVEL - level + 1
+  const spanEnd = spanStart + (1 - spanStart) / restantes
 
   const dir = direction.clone().normalize()
 
@@ -303,6 +331,8 @@ function grow(input: GrowInput): void {
     segments,
     uvStart: LEVEL_UV[level - 1],
     uvEnd: LEVEL_UV[level],
+    spanStart,
+    spanEnd,
   })
 
   if (level >= MAX_LEVEL) return
@@ -341,6 +371,10 @@ function grow(input: GrowInput): void {
       level: level + 1,
       parent: selfIndex,
       parentT: clamped,
+      // Acá está toda la continuidad: la hija no empieza en el voladizo de
+      // su nivel, empieza en el que tiene la madre en el punto exacto donde
+      // se tocan. Sin esta línea el viento las separa en cada ráfaga.
+      spanStart: spanStart + (spanEnd - spanStart) * clamped,
       out,
     })
   }
@@ -389,6 +423,8 @@ function buildBranch(
     level: 1,
     parent: -1,
     parentT: 0,
+    // La rama nace clavada al tronco, que no se dobla: voladizo cero.
+    spanStart: 0,
     out: twigs,
   })
 
@@ -406,6 +442,28 @@ function buildBranch(
  * Repartirlas parejo por toda la rama —incluido el tramo grueso— es lo que
  * hace que un árbol digital parezca un cepillo.
  */
+/**
+ * Cuánto se dobla la madera en un punto dado de una ramita.
+ *
+ * Es el espejo exacto de la fórmula del vertex shader de la corteza (ver
+ * energyMaterial). Vive acá porque las hojas necesitan el MISMO número que
+ * la rama de la que cuelgan: si la hoja usa una aproximación propia, se
+ * despega de su ramita en cada ráfaga y el racimo hormiguea en vez de
+ * viajar entero.
+ *
+ * Medido sobre el árbol real, este valor va de 0.15 a 0.83 según dónde
+ * cuelgue la hoja —mediana 0.50—, así que una constante no alcanza: en las
+ * zonas rígidas las hojas se moverían cinco veces de más.
+ */
+export function twigFlex(twig: Twig, t: number, y: number): number {
+  const span = twig.spanStart + (twig.spanEnd - twig.spanStart) * t
+  const thickness = 1 - (twig.level - 1) / 4
+  const rigido = 1 + (0.45 - 1) * Math.min(1, Math.max(0, thickness))
+  const u = Math.min(1, Math.max(0, y / 1.2))
+  const upward = u * u * (3 - 2 * u)
+  return span * span * rigido * upward
+}
+
 function buildLeafSlots(rng: () => number, twigs: Twig[]): LeafSlot[] {
   const slots: LeafSlot[] = []
 
@@ -437,12 +495,15 @@ function buildLeafSlots(rng: () => number, twigs: Twig[]): LeafSlot[] {
       const normal = offset.clone().normalize()
       if (normal.lengthSq() < 0.01) normal.copy(up)
 
+      const position = point.clone().add(offset)
+
       slots.push({
-        position: point.clone().add(offset),
+        position,
         normal,
         scale: randomRange(rng, 0.72, 1.24),
         twig: index,
         t: clamped,
+        flex: twigFlex(twig, clamped, position.y),
       })
     }
   })
@@ -504,18 +565,41 @@ function buildAmbientSlots(branches: BranchGeometry[]): AmbientSlot[] {
           const normal = offset.clone().normalize()
           if (normal.lengthSq() < 0.01) normal.set(0, 1, 0)
 
+          const position = center.clone().add(offset)
+
           slots.push({
-            position: center.clone().add(offset),
+            position,
             normal,
             scale: randomRange(rng, 0.62, 1.15),
             branch: branchIndex,
             /** Las de adentro del racimo van más oscuras: da profundidad. */
             depth: 1 - r / radius,
+            flex: twigFlex(twig, Math.min(0.99, at), position.y),
           })
         }
       }
     })
   })
+
+  /*
+   * Barajado determinista, el mismo que buildLeafSlots.
+   *
+   * Faltaba acá, y se veía. Leaves dibuja los PRIMEROS N slots, con N según
+   * la densidad de la etapa de crecimiento. Generados rama por rama, ese
+   * prefijo es un orden alfabético de áreas: con la densidad de apertura
+   * las tres últimas —Cultura, Urbanismo y Comunidad— quedaban con CERO
+   * hojas de ambiente. Y son justo las tres ramas más altas del tronco, así
+   * que el árbol abría la feria descabezado, con el vértice de la copa en
+   * puro esqueleto y el color de tres áreas ausente.
+   *
+   * Con el barajado, la densidad hace lo que promete: la copa se llena
+   * pareja en las ocho áreas y en toda su altura, y el recorte deja de
+   * comerse un área entera.
+   */
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[slots[i], slots[j]] = [slots[j], slots[i]]
+  }
 
   return slots
 }

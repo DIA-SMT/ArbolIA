@@ -33,7 +33,15 @@ export default function Leaves({ ideas, growth }: Props) {
   const citizenRef = useRef<THREE.InstancedMesh>(null)
   const ambientRef = useRef<THREE.InstancedMesh>(null)
 
-  const geometry = useMemo(() => getLeafGeometry(), [])
+  /*
+   * Una geometría por malla, no la compartida.
+   *
+   * aFlex es un atributo POR INSTANCIA, así que vive en la geometría. Las
+   * dos mallas tienen distinta cantidad de instancias y distintos valores,
+   * de modo que colgarlo de la geometría común las pisaría entre sí.
+   */
+  const ambientGeometry = useMemo(() => withFlexAttribute(MAX_AMBIENT), [])
+  const citizenGeometry = useMemo(() => withFlexAttribute(MAX_LEAVES), [])
   const model = useMemo(() => getTreeModel(), [])
 
   // Estado de colocación entre renders.
@@ -55,6 +63,7 @@ export default function Leaves({ ideas, growth }: Props) {
     const dummy = new THREE.Object3D()
     const color = new THREE.Color()
     const hsl = { h: 0, s: 0, l: 0 }
+    const flex = ambientGeometry.getAttribute('aFlex') as THREE.InstancedBufferAttribute
 
     // Un color por área, resuelto una sola vez.
     const branchColors = model.branches.map((b) => new THREE.Color(b.color))
@@ -84,11 +93,13 @@ export default function Leaves({ ideas, growth }: Props) {
         hsl.l * (0.52 - slot.depth * 0.28) * (0.86 + (i % 5) * 0.045),
       )
       mesh.setColorAt(i, color)
+      flex.setX(i, slot.flex)
     })
 
     mesh.instanceMatrix.needsUpdate = true
+    flex.needsUpdate = true
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
-  }, [model])
+  }, [model, ambientGeometry])
 
   // La densidad del follaje base sube con la etapa de crecimiento.
   useLayoutEffect(() => {
@@ -114,6 +125,7 @@ export default function Leaves({ ideas, growth }: Props) {
       previous.every((id, index) => nextIds[index] === id)
 
     const dummy = new THREE.Object3D()
+    const flex = citizenGeometry.getAttribute('aFlex') as THREE.InstancedBufferAttribute
 
     if (!isAppend) {
       // Cambió el conjunto (moderación retiró una hoja, o hubo reinicio):
@@ -124,10 +136,11 @@ export default function Leaves({ ideas, growth }: Props) {
 
       leaves.forEach((leaf, i) => {
         if (i >= MAX_LEAVES) return
-        applyLeaf(mesh, dummy, leaf, i, 1)
+        applyLeaf(mesh, flex, dummy, leaf, i, 1)
       })
       mesh.count = Math.min(leaves.length, MAX_LEAVES)
       mesh.instanceMatrix.needsUpdate = true
+      flex.needsUpdate = true
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
       idsRef.current = nextIds
       return
@@ -151,15 +164,16 @@ export default function Leaves({ ideas, growth }: Props) {
       placedRef.current[i] = leaf
 
       // Arranca en escala 0: el brote lo anima useFrame.
-      applyLeaf(mesh, dummy, leaf, i, 0)
+      applyLeaf(mesh, flex, dummy, leaf, i, 0)
       sproutRef.current.set(i, clockRef.current)
     }
 
     mesh.count = Math.min(ideas.length, MAX_LEAVES)
     mesh.instanceMatrix.needsUpdate = true
+    flex.needsUpdate = true
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
     idsRef.current = nextIds
-  }, [ideas])
+  }, [ideas, citizenGeometry])
 
   // ---- Animación de brote + viento -----------------------------------
   useFrame((_, delta) => {
@@ -173,6 +187,7 @@ export default function Leaves({ ideas, growth }: Props) {
     if (!mesh || sprouts.size === 0) return
 
     const dummy = new THREE.Object3D()
+    const flex = citizenGeometry.getAttribute('aFlex') as THREE.InstancedBufferAttribute
     let dirty = false
 
     for (const [index, startedAt] of sprouts) {
@@ -184,18 +199,21 @@ export default function Leaves({ ideas, growth }: Props) {
       }
 
       if (elapsed >= SPROUT_MS) {
-        applyLeaf(mesh, dummy, leaf, index, 1)
+        applyLeaf(mesh, flex, dummy, leaf, index, 1)
         sprouts.delete(index)
         dirty = true
         continue
       }
 
       const t = elapsed / SPROUT_MS
-      applyLeaf(mesh, dummy, leaf, index, sproutEase(t))
+      applyLeaf(mesh, flex, dummy, leaf, index, sproutEase(t))
       dirty = true
     }
 
-    if (dirty) mesh.instanceMatrix.needsUpdate = true
+    if (dirty) {
+      mesh.instanceMatrix.needsUpdate = true
+      flex.needsUpdate = true
+    }
   })
 
   // Sin dispose() manual: rompería el montaje doble de StrictMode.
@@ -205,13 +223,13 @@ export default function Leaves({ ideas, growth }: Props) {
     <group>
       <instancedMesh
         ref={ambientRef}
-        args={[geometry, ambientMaterial, MAX_AMBIENT]}
+        args={[ambientGeometry, ambientMaterial, MAX_AMBIENT]}
         frustumCulled={false}
         count={0}
       />
       <instancedMesh
         ref={citizenRef}
-        args={[geometry, material, MAX_LEAVES]}
+        args={[citizenGeometry, material, MAX_LEAVES]}
         frustumCulled={false}
         count={0}
       />
@@ -232,6 +250,7 @@ function sproutEase(t: number): number {
 
 function applyLeaf(
   mesh: THREE.InstancedMesh,
+  flex: THREE.InstancedBufferAttribute,
   dummy: THREE.Object3D,
   leaf: PlacedLeaf,
   index: number,
@@ -243,6 +262,23 @@ function applyLeaf(
   dummy.updateMatrix()
   mesh.setMatrixAt(index, dummy.matrix)
   mesh.setColorAt(index, leaf.color)
+  flex.setX(index, leaf.slot.flex)
+}
+
+/**
+ * Copia de la geometría de hoja con lugar para el atributo aFlex.
+ *
+ * La geometría base viene compartida por leafAssets, y un atributo por
+ * instancia no se puede compartir: las dos capas de follaje tienen distinta
+ * cantidad de hojas y distintos valores de flexión.
+ */
+function withFlexAttribute(capacity: number): THREE.BufferGeometry {
+  const geometry = getLeafGeometry().clone()
+  geometry.setAttribute(
+    'aFlex',
+    new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1),
+  )
+  return geometry
 }
 
 /**
@@ -262,7 +298,7 @@ function makeLeafMaterial(map: THREE.Texture): THREE.MeshBasicMaterial {
     toneMapped: false,
   })
 
-  const wind = windUniforms(0.03)
+  const wind = windUniforms(0.105)
   material.userData.wind = wind
 
   material.onBeforeCompile = (shader) => {
@@ -274,6 +310,7 @@ function makeLeafMaterial(map: THREE.Texture): THREE.MeshBasicMaterial {
         /* glsl */ `
         #include <common>
         ${WIND_GLSL}
+        attribute float aFlex;
         varying float vShimmer;
         `,
       )
@@ -297,15 +334,41 @@ function makeLeafMaterial(map: THREE.Texture): THREE.MeshBasicMaterial {
          * El extra propio es chico y sólo agrega el aleteo de la hoja
          * suelta, que se mueve un poco más que la madera que la sostiene.
          */
-        float leafFlex = smoothstep(0.0, 1.6, iPos.y);
-        vec3  windOffset = arboliaWind(iPos, leafFlex);
+        /* aFlex lo calcula treeGeometry con la misma fórmula que la
+           corteza, en el punto exacto del que cuelga esta hoja. Medido
+           sobre el árbol real va de 0.15 a 0.83 según la zona, así que
+           una constante no servía: donde la madera es rígida las hojas
+           se movían cinco veces de más y el racimo se despegaba. */
+        vec3 windOffset = arboliaWind(iPos, aFlex);
+        float leafFlex = aFlex;
 
+        float rafaga = arboliaGust(uWindTime);
         float flutter = sin(uWindTime * 2.6 + iPos.x * 4.1 + iPos.z * 3.3);
-        windOffset += vec3(flutter, flutter * 0.4, -flutter * 0.7) * 0.008 * leafFlex;
+        windOffset += vec3(flutter, flutter * 0.4, -flutter * 0.7)
+                    * 0.016 * leafFlex * (0.4 + 0.6 * rafaga);
 
-        transformed += windOffset;
+        /*
+         * El desplazamiento sale del espacio de la instancia antes de
+         * sumarse. Sin esto era un bug silencioso: la posición del vértice
+         * está en
+         * espacio LOCAL de la hoja y three aplica instanceMatrix DESPUÉS,
+         * así que el viento se rotaba por la orientación de cada hoja —que
+         * lleva un giro al azar sobre su normal— y cada una se iba para un
+         * lado distinto. La copa no se movía con el viento: hormigueaba.
+         *
+         * Era también lo que obligaba a dejar la amplitud tan baja que no
+         * se notara el desorden. La escala de instancia siempre es uniforme
+         * (setScalar en los dos lugares donde se arma la matriz), así que
+         * dividir por su cuadrado da la inversa exacta.
+         */
+        mat3 im = mat3(instanceMatrix);
+        vec3 s2 = vec3(dot(im[0], im[0]), dot(im[1], im[1]), dot(im[2], im[2]));
+        transformed += (windOffset * im) / s2;
 
-        vShimmer = 0.86 + 0.14 * sin(uWindTime * 1.2 + iPos.x * 2.0 + iPos.z * 1.6);
+        /* El brillo viaja con la MISMA ráfaga que empuja las ramas: la
+           ola de luz y el movimiento son el mismo evento, no dos. */
+        vShimmer = 0.80 + 0.20 * rafaga
+                 * (0.5 + 0.5 * sin(uWindTime * 1.2 + iPos.x * 2.0 + iPos.z * 1.6));
         `,
       )
 

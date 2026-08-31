@@ -13,6 +13,14 @@ import * as THREE from 'three'
  *
  * uv.x avanza a lo largo del recorrido (lo usa el shader para mover los
  * pulsos de savia), uv.y da la vuelta al perímetro.
+ *
+ * Aparte de uv.x va aSpan, el VOLADIZO: cuánto cuelga ese punto respecto de
+ * lo que lo sostiene. Parecen lo mismo y no lo son. uv.x está cuantizado por
+ * nivel de rama —todas las de nivel 3 arrancan en 0.64— porque de él depende
+ * el orden en que el árbol crece. El voladizo, en cambio, tiene que ser
+ * continuo en cada axila: una hija nace a mitad de su madre, así que el
+ * valor que le toca ahí es el de la madre en ese punto, no el de su nivel.
+ * Con un solo número para las dos cosas, el viento abre las axilas.
  */
 
 export interface TubeAccumulator {
@@ -22,10 +30,12 @@ export interface TubeAccumulator {
   indices: number[]
   /** Grosor relativo de la rama, 1 = tronco, 0 = ramita terminal. */
   thickness: number[]
+  /** Voladizo: 0 donde el árbol está clavado, 1 en la punta más lejana. */
+  span: number[]
 }
 
 export function createAccumulator(): TubeAccumulator {
-  return { positions: [], normals: [], uvs: [], indices: [], thickness: [] }
+  return { positions: [], normals: [], uvs: [], indices: [], thickness: [], span: [] }
 }
 
 export interface TubeOptions {
@@ -37,6 +47,11 @@ export interface TubeOptions {
    *  desde el tronco hacia la punta a través de varias ramas encadenadas. */
   uvStart?: number
   uvEnd?: number
+  /** Voladizo al arrancar y al terminar ESTE tramo. Los encadena quien
+   *  llama, para que el valor de una hija en su axila coincida con el de la
+   *  madre en ese punto. Por omisión, el tramo cubre el voladizo entero. */
+  spanStart?: number
+  spanEnd?: number
 }
 
 export function addTube(
@@ -50,6 +65,8 @@ export function addTube(
   const thickness = options.thickness ?? 1
   const uvStart = options.uvStart ?? 0
   const uvEnd = options.uvEnd ?? 1
+  const spanStart = options.spanStart ?? 0
+  const spanEnd = options.spanEnd ?? 1
 
   const frames = curve.computeFrenetFrames(segments, false)
   const vertexOffset = acc.positions.length / 3
@@ -67,6 +84,7 @@ export function addTube(
 
     const radius = Math.max(0.0012, radiusAt(t))
     const u = uvStart + (uvEnd - uvStart) * t
+    const span = spanStart + (spanEnd - spanStart) * t
 
     for (let j = 0; j <= radialSegments; j++) {
       const theta = (j / radialSegments) * Math.PI * 2
@@ -86,6 +104,7 @@ export function addTube(
       )
       acc.uvs.push(u, j / radialSegments)
       acc.thickness.push(thickness)
+      acc.span.push(span)
     }
   }
 
@@ -107,6 +126,7 @@ export function finalize(acc: TubeAccumulator): THREE.BufferGeometry {
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(acc.normals, 3))
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(acc.uvs, 2))
   geometry.setAttribute('aThickness', new THREE.Float32BufferAttribute(acc.thickness, 1))
+  geometry.setAttribute('aSpan', new THREE.Float32BufferAttribute(acc.span, 1))
   geometry.computeBoundingSphere()
   return geometry
 }

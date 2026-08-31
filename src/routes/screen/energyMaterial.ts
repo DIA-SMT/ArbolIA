@@ -23,6 +23,7 @@ const vertexShader = /* glsl */ `
   ${WIND_GLSL}
 
   attribute float aThickness;
+  attribute float aSpan;
 
   varying vec2  vUv;
   varying vec3  vNormalW;
@@ -34,21 +35,37 @@ const vertexShader = /* glsl */ `
     vUv = uv;
     vThickness = aThickness;
 
-    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-
     /*
      * Flexión de la madera.
      *
-     * El cuadrado de (1 - grosor) hace la diferencia entre una rama que se
-     * mece y un árbol de goma: el tronco queda clavado, las ramas medias
-     * apenas acompañan y sólo las ramitas finas se agitan de verdad. Y se
-     * anula bajo tierra, porque una raíz que ondea rompe todo el efecto.
+     * Manda aSpan, el voladizo: cero donde la rama está anclada, uno en la
+     * punta más lejana, y encadenado axila por axila (ver Twig.spanStart en
+     * treeGeometry), así que madre e hija valen lo mismo donde se tocan y
+     * el doblez no salta en el nudo.
+     *
+     * NO sirve uv.x para esto, aunque también vaya de 0 a 1 a lo largo del
+     * recorrido: uv.x está cuantizado por nivel porque de él depende el
+     * orden en que crece el árbol. Una hija que nace a mitad de su madre
+     * arranca igual en el 0.83 de su nivel mientras la madre va por 0.73;
+     * medido acá eso daba un salto de flexión de 0.10 en las 175 axilas.
+     *
+     * Antes mandaba el grosor, que es constante a lo largo de cada tubo.
+     * Con eso cada ramita se trasladaba entera en bloque en vez de
+     * doblarse, y la rama madre —grosor 1— no se movía absolutamente nada
+     * mientras sus hijas se corrían: el árbol se abría por las axilas.
+     *
+     * El grosor queda, pero como rigidez: la madera gruesa se dobla menos.
+     * Y se anula bajo tierra, porque una raíz que ondea rompe el efecto.
      */
-    float taper  = 1.0 - clamp(aThickness, 0.0, 1.0);
-    float upward = smoothstep(0.0, 1.6, worldPos.y);
-    float flex   = taper * taper * upward;
+    float span   = aSpan * aSpan;
+    float rigido = mix(1.0, 0.45, clamp(aThickness, 0.0, 1.0));
+    float upward = smoothstep(0.0, 1.2, position.y);
+    float flex   = span * rigido * upward;
 
-    worldPos.xyz += arboliaWind(worldPos.xyz, flex);
+    /* En espacio de objeto: el viento tiene que escalar con el árbol y
+       estar en la misma fase que el follaje, que también evalúa acá. */
+    vec3 desplazado = position + arboliaWind(position, flex);
+    vec4 worldPos = modelMatrix * vec4(desplazado, 1.0);
 
     vHeight = worldPos.y;
     vNormalW = normalize(mat3(modelMatrix) * normal);

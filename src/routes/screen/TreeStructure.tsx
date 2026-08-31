@@ -81,6 +81,10 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
             // tronco a la punta pasando de una rama a su hija sin saltos.
             uvStart: twig.uvStart,
             uvEnd: twig.uvEnd,
+            // El voladizo va aparte y encadenado por axila, no por nivel:
+            // es lo que mantiene pegada la hija a la madre bajo el viento.
+            spanStart: twig.spanStart,
+            spanEnd: twig.spanEnd,
           })
         })
 
@@ -99,7 +103,7 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
         direction: 1,
         rimPower: 3.6,
         // El tronco cede muy poco: es la parte gruesa del árbol.
-        windStrength: 0.012,
+        windStrength: 0,
       }),
     [],
   )
@@ -134,7 +138,7 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
           direction: 1,
           rimPower: 3.4,
           // Las ramas son las que se mecen de verdad.
-          windStrength: 0.038,
+          windStrength: 0.1,
         }),
       ),
     [model],
