@@ -10,3 +10,6 @@ dist
 
 # Mediciones sueltas: scratch, no forma parte del proyecto.
 scripts/_*
+
+# Cache incremental de TypeScript: se regenera solo.
+*.tsbuildinfo
