@@ -595,6 +595,45 @@ export function useLiveTree(): LiveTree {
           ),
         )
       },
+      /**
+       * Siembra de golpe, sin cola ni animación.
+       *
+       * `lluvia` encola, y cada idea encolada se toma sus segundos de viaje:
+       * mil ideas por ahí son horas. Esto es para la otra pregunta, la de
+       * cuánto crece el árbol y hasta dónde llegan las raíces con la feria
+       * andando, que no se puede contestar esperando.
+       *
+       * No toca la base: arma las ideas en memoria, igual que el resto del
+       * ensayo. El contador de stats sí se mueve, porque de él sale la etapa
+       * de crecimiento y por lo tanto el tamaño del árbol.
+       *
+       *   __arbolia_ensayo.sembrar(600)        // 600, 20% críticas
+       *   __arbolia_ensayo.sembrar(1500, 0.35) // 1500, 35% críticas
+       */
+      sembrar: (cantidad = 300, proporcionCriticas = 0.2) => {
+        const cats = ['ambiente', 'movilidad', 'espacios', 'tecnologia',
+                      'transporte', 'cultura', 'urbanismo', 'comunidad']
+        const lote = Array.from({ length: cantidad }, (_, i) => {
+          const esCritica = i % Math.max(2, Math.round(1 / Math.max(0.01, proporcionCriticas))) === 0
+          return inventar(
+            esCritica ? `Reclamo de ensayo ${i + 1}` : `Propuesta de ensayo ${i + 1}`,
+            cats[i % cats.length],
+            esCritica ? 'critica' : 'propuesta',
+          )
+        })
+        lote.forEach((i) => seenIdsRef.current.add(i.id))
+
+        // Sólo las propuestas ocupan hoja; las críticas suman al total.
+        plantSilently(lote.filter((i) => i.tipo !== 'critica'))
+        setStats((prev) => {
+          const byCategory = prev.byCategory.map((cat) => ({
+            ...cat,
+            total: cat.total + lote.filter((i) => i.category === cat.slug).length,
+          }))
+          return { ...prev, ideas: prev.ideas + lote.length, byCategory }
+        })
+        return { sembradas: cantidad, propuestas: lote.filter((i) => i.tipo !== 'critica').length }
+      },
     }
 
     ;(window as unknown as { __arbolia_ensayo?: typeof api }).__arbolia_ensayo = api

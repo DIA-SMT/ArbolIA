@@ -57,6 +57,17 @@ export default function TreeScene({
 
   const bloomRef = useRef<BloomEffect | null>(null)
 
+  /*
+   * La escala que el árbol tiene DIBUJADA en este cuadro.
+   *
+   * La escribe GrowthRig y la lee la cámara. Va por referencia y no por
+   * prop porque lo que le importa a la cámara no es a qué escala tiende el
+   * árbol sino cuál tiene ahora: GrowthRig interpola muy lento hacia el
+   * objetivo, y encuadrar contra el objetivo dejaría a la cámara adelantada
+   * al árbol durante toda la transición.
+   */
+  const escalaRef = useRef(growth.canopyScale)
+
   return (
     <>
       {/*
@@ -76,7 +87,7 @@ export default function TreeScene({
         args={tema === 'claro' ? ['#e9f1f9', 8.5, 19] : ['#071220', 9.5, 21]}
       />
 
-      <CameraRig celebration={celebration} />
+      <CameraRig celebration={celebration} escalaRef={escalaRef} />
 
       <Atmosphere growth={growth} />
 
@@ -85,13 +96,13 @@ export default function TreeScene({
         follaje, partícula y etiquetas crecen juntos. Si escalara sólo la
         estructura, las hojas quedarían flotando fuera de sus ramas.
       */}
-      <GrowthRig scale={growth.canopyScale}>
+      <GrowthRig scale={growth.canopyScale} escalaRef={escalaRef}>
         <TreeStructure
           growth={growth}
           highlightSlug={activeIdea?.category ?? null}
           pulsoRaices={pulsoRaices}
         />
-        <Leaves ideas={propuestas} growth={growth} />
+        <Leaves ideas={propuestas} growth={growth} quality={quality} />
         <Journey idea={activeIdea} indexInCategory={indexInCategory} />
 
         {/* La crítica hace el camino inverso: cae y alimenta las raíces. */}
@@ -149,7 +160,15 @@ export default function TreeScene({
  * el árbol se agranda de verdad. Un salto de tamaño al cruzar el umbral de
  * una etapa se leería como un error de render.
  */
-function GrowthRig({ scale, children }: { scale: number; children: React.ReactNode }) {
+function GrowthRig({
+  scale,
+  escalaRef,
+  children,
+}: {
+  scale: number
+  escalaRef: React.MutableRefObject<number>
+  children: React.ReactNode
+}) {
   const ref = useRef<THREE.Group>(null)
   const readyRef = useRef(false)
 
@@ -161,15 +180,47 @@ function GrowthRig({ scale, children }: { scale: number; children: React.ReactNo
     // desde cero un árbol que ya tiene doscientas ideas.
     if (!readyRef.current) {
       group.scale.setScalar(scale)
+      escalaRef.current = scale
       readyRef.current = true
       return
     }
 
     group.scale.setScalar(THREE.MathUtils.lerp(group.scale.x, scale, 0.01))
+    escalaRef.current = group.scale.x
   })
 
   return <group ref={ref}>{children}</group>
 }
+
+/*
+ * Medidas del árbol a escala 1, para poder encuadrarlo.
+ *
+ * Salen de medir la instalación corriendo: se proyectaron 13.000 vértices
+ * de la madera y centros de hoja sobre 128 posiciones de cámara —toda la
+ * órbita, con las oscilaciones de radio y altura en sus extremos— y se
+ * buscó el par que deja los márgenes más parejos.
+ *
+ * ALTO_UNITARIO sí es la altura real de la silueta. CENTRO_UNITARIO NO es
+ * el centro geométrico: es el punto de mira que equilibra
+ * el cuadro. La diferencia es perspectiva pura — la cámara mira casi a la
+ * altura del árbol, así que las raíces quedan cerca y proyectan hacia abajo
+ * mucho más de lo que su tamaño sugiere. Apuntando al centro geométrico el
+ * margen de abajo se iba a -1.7% y el árbol se cortaba.
+ *
+ * Con estos valores: 10.6% de margen arriba y 11.1% abajo en el peor
+ * cuadro de la órbita. Si cambia la geometría del árbol hay que volver a
+ * medirlas, y el síntoma de que quedaron viejas es que se descentre.
+ */
+const ALTO_UNITARIO = 6.64
+const CENTRO_UNITARIO = 1.8
+
+/** Rango de canopyScale entre Brote y Pleno. Ver stagesFor() en growth.ts. */
+const ESCALA_MIN = 0.52
+const ESCALA_MAX = 1.3
+
+/** Cuánto del alto del cuadro ocupa el árbol en cada extremo del rango. */
+const LLENADO_MIN = 0.56
+const LLENADO_MAX = 0.7
 
 /**
  * Órbita lenta y continua alrededor del árbol.
@@ -178,14 +229,18 @@ function GrowthRig({ scale, children }: { scale: number; children: React.ReactNo
  * hace que alguien que pasa de reojo gire la cabeza. La vuelta completa
  * demora ~100 s: se nota que está vivo, pero no marea a quien mira un rato.
  */
-function CameraRig({ celebration }: { celebration: number | null }) {
+function CameraRig({
+  celebration,
+  escalaRef,
+}: {
+  celebration: number | null
+  escalaRef: React.MutableRefObject<number>
+}) {
   const { camera } = useThree()
   const timeRef = useRef(0)
   const celebrationRef = useRef(0)
   const lastCelebration = useRef<number | null>(null)
-  // Sin la banda inferior del QR, el árbol se centra un poco más abajo y se
-  // ven las raíces completas. Si el QR vuelve, subir esto a 2.15.
-  const target = useMemo(() => new THREE.Vector3(0, 2.05, 0), [])
+  const target = useMemo(() => new THREE.Vector3(0, 0, 0), [])
 
   if (celebration !== lastCelebration.current) {
     lastCelebration.current = celebration
@@ -207,17 +262,60 @@ function CameraRig({ celebration }: { celebration: number | null }) {
      * velocidad angular, y desfasar la altura respecto del radio, hace que
      * el movimiento parezca intención y no un motor girando.
      */
+    /*
+     * El encuadre se calcula, no se fija.
+     *
+     * Antes eran dos números quietos —mirar a y=2.05 desde un radio de 7— y
+     * eso encuadraba UNA sola escala del árbol. El problema es que el árbol
+     * cambia de tamaño durante la feria: canopyScale va de 0.52 en Brote a
+     * 1.3 en Pleno, dos veces y media. Medido con 14 ideas, o sea en el
+     * tamaño MÍNIMO, la silueta ya ocupaba el 64% del alto y tocaba el borde
+     * de abajo: el abanico de raíces estaba cortado. Con la feria andando el
+     * árbol se salía del cuadro por completo.
+     *
+     * Ahora la cámara despeja la distancia a la que el árbol ocupa la
+     * fracción de pantalla que queremos, y mira a su centro real. Las dos
+     * cosas dependen de la escala dibujada, así que el encuadre se sostiene
+     * en cualquier etapa.
+     *
+     * Que la fracción crezca con la escala —0.70 en Brote, 0.88 en Pleno— es
+     * a propósito: si fuera constante, el árbol tendría exactamente el mismo
+     * tamaño en pantalla con 10 ideas que con 3000 y se perdería lo único
+     * que la instalación tiene para contar. Así crece, pero acotado.
+     */
+    const escala = escalaRef.current
+    const alto = ALTO_UNITARIO * escala
+    const centro = CENTRO_UNITARIO * escala
+
+    const avance = THREE.MathUtils.clamp(
+      (escala - ESCALA_MIN) / (ESCALA_MAX - ESCALA_MIN),
+      0,
+      1,
+    )
+    const relleno = THREE.MathUtils.lerp(LLENADO_MIN, LLENADO_MAX, avance)
+
+    // Distancia a la que un objeto de esa altura ocupa esa fracción del
+    // cuadro. El fov de three es VERTICAL, así que esto no depende de si el
+    // LED es 16:9 o más ancho.
+    const fov = (camera as THREE.PerspectiveCamera).fov ?? 42
+    const radioBase = alto / (2 * relleno * Math.tan((fov * Math.PI) / 360))
+
+    target.y = centro
+
     const angle = t * 0.055 + Math.sin(t * 0.083) * 0.34
-    const radius = 7.0 + Math.sin(t * 0.117 + 1.4) * 0.55 + celebrating * 1.5
-    const height = 2.5 + Math.sin(t * 0.071) * 0.42 + celebrating * 0.5
+    // Las oscilaciones van en proporción al radio, no en unidades fijas: con
+    // el árbol chico la cámara está cerca y medio metro se nota el triple.
+    const radius = radioBase * (1 + Math.sin(t * 0.117 + 1.4) * 0.078 + celebrating * 0.21)
+    const height = target.y + radioBase * (0.064 + Math.sin(t * 0.071) * 0.06 + celebrating * 0.07)
 
     camera.position.set(Math.cos(angle) * radius, height, Math.sin(angle) * radius)
 
     // El punto de mira también deriva: la copa no queda clavada en el centro.
+    const deriva = alto * 0.035
     camera.lookAt(
-      target.x + Math.sin(t * 0.047) * 0.16,
-      target.y + Math.sin(t * 0.061) * 0.12,
-      target.z + Math.cos(t * 0.053) * 0.16,
+      target.x + Math.sin(t * 0.047) * deriva,
+      target.y + Math.sin(t * 0.061) * deriva * 0.75,
+      target.z + Math.cos(t * 0.053) * deriva,
     )
   })
 

@@ -7,8 +7,20 @@ import { leafQuaternion, placeAll, placeLeaf, type PlacedLeaf } from './leafPlac
 import { WIND_GLSL, windUniforms } from './windShader'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
-const MAX_LEAVES = 1400
-const MAX_AMBIENT = 4200
+/*
+ * Techos de dibujo del follaje.
+ *
+ * Se subieron para que la copa se lea como masa y no como racimos sueltos.
+ * El costo es relleno de pixeles, que es justo lo que escasea en la placa
+ * integrada del stand, asi que MAX_AMBIENT es el techo en calidad alta y
+ * en media se dibuja la mitad: si el LED se entrecorta, el operador baja
+ * la calidad y recupera cuadros sin que nadie toque codigo.
+ *
+ * El de las ciudadanas no se recorta por calidad: son las hojas de las
+ * personas que participaron y no pueden desaparecer por rendimiento.
+ */
+const MAX_LEAVES = 2300
+const MAX_AMBIENT = 9200
 /** Duración del brote de una hoja recién integrada. */
 const SPROUT_MS = 1100
 /** Las hojas ciudadanas van mas grandes que el follaje base: tienen que
@@ -18,6 +30,8 @@ const CITIZEN_SCALE = 1.34
 interface Props {
   ideas: Idea[]
   growth: GrowthProfile
+  /** En media se dibuja la mitad del follaje de ambiente. */
+  quality: 'alta' | 'media'
 }
 
 /**
@@ -29,7 +43,7 @@ interface Props {
  *  2. Ciudadanas — una por idea recibida, con el color de su categoría y
  *     un brillo muy por encima del ambiente. Son las que se ven.
  */
-export default function Leaves({ ideas, growth }: Props) {
+export default function Leaves({ ideas, growth, quality }: Props) {
   const citizenRef = useRef<THREE.InstancedMesh>(null)
   const ambientRef = useRef<THREE.InstancedMesh>(null)
 
@@ -105,11 +119,9 @@ export default function Leaves({ ideas, growth }: Props) {
   useLayoutEffect(() => {
     const mesh = ambientRef.current
     if (!mesh) return
-    mesh.count = Math.min(
-      MAX_AMBIENT,
-      Math.round(MAX_AMBIENT * Math.min(1, growth.foliageDensity)),
-    )
-  }, [growth.foliageDensity])
+    const techo = quality === 'alta' ? MAX_AMBIENT : Math.round(MAX_AMBIENT * 0.5)
+    mesh.count = Math.min(techo, Math.round(techo * Math.min(1, growth.foliageDensity)))
+  }, [growth.foliageDensity, quality])
 
   // ---- Hojas ciudadanas ---------------------------------------------
   useLayoutEffect(() => {

@@ -18,17 +18,28 @@ const RECENT_COUNT = 5
  */
 function readFlags() {
   const params = new URLSearchParams(window.location.search)
+  const pedida = params.get('calidad')
   return {
     postprocessing: params.get('fx') !== 'off',
     diagnostics: params.has('diag'),
+    /*
+     * ?calidad=alta|media fija la calidad y apaga el guardián.
+     *
+     * El guardián baja la calidad solo si caen los cuadros, que es lo que
+     * se quiere sin nadie mirando. Pero un tirón de un segundo —el
+     * navegador indexando, un pico de red— la deja degradada el resto de
+     * la jornada, y nadie en el stand va a saber por qué la pantalla se
+     * ve peor que en la prueba. Con esto el operador la clava.
+     */
+    calidadFijada: (pedida === 'alta' || pedida === 'media' ? pedida : null) as 'alta' | 'media' | null,
   }
 }
 
 export default function ScreenRoute() {
   const tree = useLiveTree()
-  const [quality, setQuality] = useState<'alta' | 'media'>('alta')
-  const [diag, setDiag] = useState<DiagInfo | null>(null)
   const flags = useMemo(readFlags, [])
+  const [quality, setQuality] = useState<'alta' | 'media'>(flags.calidadFijada ?? 'alta')
+  const [diag, setDiag] = useState<DiagInfo | null>(null)
   // Las etapas dependen de la meta vigente: si el equipo la cambia durante
   // la expo, los tramos de crecimiento se recalculan solos.
   /*
@@ -113,7 +124,7 @@ export default function ScreenRoute() {
           postprocessing={flags.postprocessing}
           onDiagnostics={flags.diagnostics ? setDiag : undefined}
         />
-        <PerformanceGuard onDowngrade={() => setQuality('media')} />
+        {!flags.calidadFijada && <PerformanceGuard onDowngrade={() => setQuality('media')} />}
         {import.meta.env.DEV && <DevBridge />}
       </Canvas>
 

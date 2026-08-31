@@ -27,9 +27,21 @@ console.log('\nESTRUCTURA')
 check('tronco generado', model.trunk.getPoints(2).length === 3)
 const mainRoots = model.roots.filter((r) => r.level === 1)
 const subRoots = model.roots.filter((r) => r.level === 2)
+/*
+ * Rango, no número exacto.
+ *
+ * Antes exigía exactamente 11 principales, que es un parámetro de diseño y
+ * no un invariante: al hacer las raíces más frondosas la verificación se
+ * puso roja sin que nada estuviera mal. Lo que hay que proteger es que las
+ * raíces existan, que no se disparen y que cada principal se ramifique —
+ * si alguna vez quedan sin ramificar, extenderse sería sólo alargarse y se
+ * pierde lo que la base cuenta.
+ */
 check(
   'raíces con ramificación',
-  mainRoots.length === 11 && subRoots.length > 20,
+  mainRoots.length >= 8 &&
+    mainRoots.length <= 24 &&
+    subRoots.length >= mainRoots.length * 2,
   `${mainRoots.length} principales + ${subRoots.length} secundarias`,
 )
 check('8 ramas, una por área', model.branches.length === CATEGORIES.length)

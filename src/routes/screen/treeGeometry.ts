@@ -158,7 +158,7 @@ function buildTrunk(): THREE.CatmullRomCurve3 {
  */
 function buildRoots(): RootCurve[] {
   const rng = seededRandom('arbolia-roots-v3')
-  const count = 11
+  const count = 16
   const roots: RootCurve[] = []
 
   for (let i = 0; i < count; i++) {
@@ -197,7 +197,7 @@ function buildRoots(): RootCurve[] {
     roots.push({ curve: main, level: 1, uvStart: 0, uvEnd: 0.68 })
 
     // Secundarias: nacen en el tramo final y siguen abriéndose.
-    const childCount = rng() > 0.45 ? 3 : 2
+    const childCount = rng() > 0.4 ? 4 : 3
     for (let c = 0; c < childCount; c++) {
       const at = 0.55 + (c / childCount) * 0.35
       const base = main.getPointAt(Math.min(0.95, at))
@@ -471,7 +471,7 @@ function buildLeafSlots(rng: () => number, twigs: Twig[]): LeafSlot[] {
     // Sólo las ramitas de los dos últimos niveles llevan hoja.
     if (twig.level < MAX_LEVEL - 1) return
 
-    const density = twig.level === MAX_LEVEL ? 11 : 5
+    const density = twig.level === MAX_LEVEL ? 15 : 8
     const from = twig.level === MAX_LEVEL ? 0.16 : 0.55
 
     for (let i = 0; i < density; i++) {
@@ -542,8 +542,8 @@ function buildAmbientSlots(branches: BranchGeometry[]): AmbientSlot[] {
 
     tips.forEach((twig) => {
       const isTerminal = twig.level === MAX_LEVEL
-      const clusters = isTerminal ? 4 : 2
-      const perCluster = isTerminal ? 9 : 5
+      const clusters = isTerminal ? 6 : 3
+      const perCluster = isTerminal ? 13 : 7
 
       for (let c = 0; c < clusters; c++) {
         const at = 0.34 + (c / clusters) * 0.62
