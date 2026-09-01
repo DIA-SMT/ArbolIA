@@ -1,0 +1,416 @@
+/* =====================================================================
+   Informe institucional en PDF.
+
+   Estas medidas NO son decorativas: salen de la plantilla oficial de la
+   Dirección de IA (plantilla-pdf.html) y del prompt que la acompaña. Franja
+   de portada de 53 mm, bandas de 20 mm, pie de 15 mm, márgenes laterales de
+   14 mm, degradé azul en 112° y la línea de cierre 22 % amarillo / resto
+   celeste. Si algo de esto cambia, el documento deja de ser institucional.
+
+   EL PDF LO HACE EL NAVEGADOR.
+
+   No hay librería de PDF. Se arma el documento como HTML con @page A4 y se
+   llama a window.print(): el motor del navegador exporta con la fidelidad de
+   su propio render, los SVG de los gráficos salen vectoriales y el texto
+   sigue siendo texto seleccionable. Cualquier librería de canvas a PDF
+   entregaría los gráficos rasterizados y la tipografía peor, y sumaría
+   dependencias a dos días de la feria.
+   ===================================================================== */
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+.informe {
+  /* Fuera de impresión no se ve: es un documento, no una vista del panel. */
+  display: none;
+}
+
+@media print {
+  /* En impresión desaparece el panel y queda sólo el informe. */
+  body > *:not(.informe-raiz) {
+    display: none !important;
+  }
+
+  .informe {
+    display: block;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/*
+ * El informe define su propio box-sizing.
+ *
+ * Todas las medidas de acá están en milímetros de papel: si el padding se
+ * suma al height en vez de entrar adentro, cada bloque crece y el contenido
+ * termina metido debajo del pie. Medido en la vista de revisión, el cuerpo
+ * se pasaba exactamente 8 mm —el padding superior— en las dos páginas.
+ *
+ * No alcanza con que el reset global del proyecto ya use border-box: este
+ * documento tiene que salir bien también si alguien lo abre suelto, o si el
+ * día que se cambie el reset nadie se acuerda de este archivo.
+ */
+.informe,
+.informe *,
+.informe *::before,
+.informe *::after {
+  box-sizing: border-box;
+}
+
+.informe {
+  --azul: #126ff5;
+  --azul-medio: #2589ea;
+  --azul-profundo: #28469f;
+  --azul-oscuro: #0d3fb0;
+  --celeste: #3cb4f0;
+  --amarillo: #f2d91c;
+  --tinta: #10233d;
+  --texto: #33414f;
+  --gris: #6b7885;
+  --linea: #e3e8ef;
+
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--texto);
+  font-size: 10pt;
+  line-height: 1.5;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.inf__pagina {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  overflow: hidden;
+  background: #ffffff;
+  page-break-after: always;
+  break-after: page;
+}
+
+.inf__pagina:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+/* ---------------------------------------------------------- Portada */
+
+.inf__hero {
+  height: 53mm;
+  padding: 11mm 14mm 0;
+  position: relative;
+  background:
+    radial-gradient(120% 150% at 88% 8%, rgba(60, 180, 240, 0.42), transparent 58%),
+    linear-gradient(112deg, var(--azul-oscuro) 0%, var(--azul) 52%, var(--azul-medio) 100%);
+}
+
+/* La línea de cierre: 22 % amarillo, el resto celeste. */
+.inf__hero::after,
+.inf__banda::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2.6mm;
+  background: linear-gradient(
+    90deg,
+    var(--amarillo) 0%,
+    var(--amarillo) 22%,
+    var(--celeste) 22%,
+    var(--celeste) 100%
+  );
+}
+
+.inf__hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.inf__logo-smt {
+  height: 13mm;
+}
+
+/* Pastilla blanca para el logo de la Dirección de IA: está pensado para
+   fondo blanco y sobre el degradé azul se perdería. */
+.inf__chip-ia {
+  background: #ffffff;
+  border-radius: 2.4mm;
+  padding: 2.4mm 3.4mm 1.8mm;
+  text-align: center;
+}
+
+.inf__chip-ia img {
+  height: 8mm;
+  display: block;
+  margin: 0 auto;
+}
+
+.inf__chip-ia span {
+  display: block;
+  margin-top: 1mm;
+  font-size: 5pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--azul-profundo);
+}
+
+.inf__titulo {
+  margin: 7mm 0 0;
+  font-size: 25pt;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.inf__bajada {
+  margin: 2.5mm 0 0;
+  font-size: 11pt;
+  color: #cfe9fb;
+}
+
+/* ------------------------------------------------- Bandas interiores */
+
+.inf__banda {
+  height: 20mm;
+  padding: 0 14mm;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(112deg, var(--azul-oscuro), var(--azul) 60%, var(--azul-medio));
+}
+
+.inf__banda h2 {
+  margin: 0;
+  font-size: 13pt;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.inf__banda img {
+  height: 9mm;
+}
+
+/* ------------------------------------------------------------ Cuerpo */
+
+.inf__cuerpo {
+  padding: 8mm 14mm 0;
+  /* Alto de la página menos la franja y el pie: si el contenido se pasa,
+     queda recortado en vez de taparse con el pie. */
+  height: calc(297mm - 53mm - 15mm);
+  overflow: hidden;
+}
+
+.inf__cuerpo--interior {
+  height: calc(297mm - 20mm - 15mm);
+}
+
+.inf__sec {
+  margin: 0 0 3mm;
+  padding-left: 4mm;
+  position: relative;
+  font-size: 12pt;
+  font-weight: 800;
+  color: var(--tinta);
+}
+
+/* La barrita vertical azul-celeste de 1,5 mm. */
+.inf__sec::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6mm;
+  bottom: 0.6mm;
+  width: 1.5mm;
+  border-radius: 1mm;
+  background: linear-gradient(180deg, var(--azul), var(--celeste));
+}
+
+/* ------------------------------------------------------------ Cifras */
+
+.inf__kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3mm;
+  margin-bottom: 6mm;
+}
+
+.inf__kpi {
+  padding: 3.4mm 3.8mm;
+  border-radius: 2.6mm;
+  border: 1px solid var(--linea);
+  border-left: 1.2mm solid var(--azul);
+  background: #fbfcfe;
+}
+
+.inf__kpi b {
+  display: block;
+  font-size: 19pt;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+
+.inf__kpi span {
+  display: block;
+  margin-top: 1.2mm;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.inf__kpi--criticas {
+  border-left-color: var(--amarillo);
+}
+
+/* ---------------------------------------------------------- Gráficos */
+
+.inf__grafico {
+  margin: 4mm 0 6mm;
+  padding: 4mm;
+  border-radius: 2.6mm;
+  border: 1px solid var(--linea);
+  background: #ffffff;
+  box-shadow: 0 1mm 3mm rgba(16, 35, 61, 0.06);
+}
+
+.inf__grafico-tit {
+  margin: 0 0 3mm;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.inf__grafico svg {
+  width: 100%;
+  height: auto;
+  max-height: 62mm;
+}
+
+/* --------------------------------------------------- Texto de Migue */
+
+.inf__texto .md__p {
+  margin: 0 0 2.6mm;
+  text-align: justify;
+}
+
+.inf__texto .md__titulo {
+  margin: 4mm 0 2mm;
+  font-family: inherit;
+  font-size: 10.5pt;
+  font-weight: 800;
+  color: var(--tinta);
+}
+
+.inf__texto .md__lista {
+  margin: 0 0 2.6mm;
+  padding-left: 5mm;
+  display: block;
+}
+
+.inf__texto .md__lista li {
+  margin-bottom: 1mm;
+}
+
+.inf__texto strong {
+  font-weight: 700;
+  color: var(--tinta);
+}
+
+.inf__texto code {
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--azul-profundo);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* ------------------------------------------------------------ Cierre */
+
+.inf__cierre {
+  margin-top: 5mm;
+  padding: 5mm 6mm;
+  border-radius: 2.6mm;
+  background: linear-gradient(112deg, var(--azul-oscuro), var(--azul) 60%, var(--azul-medio));
+  color: #ffffff;
+}
+
+.inf__cierre h3 {
+  margin: 0 0 2mm;
+  font-size: 11pt;
+  font-weight: 800;
+}
+
+.inf__cierre p {
+  margin: 0;
+  font-size: 9.5pt;
+  color: #dceefc;
+}
+
+/* --------------------------------------------------------------- Pie */
+
+.inf__pie {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 15mm;
+  padding: 0 14mm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fbfcfe;
+  border-top: 1px solid var(--linea);
+}
+
+.inf__pie-izq {
+  display: flex;
+  align-items: center;
+  gap: 2.4mm;
+}
+
+.inf__pie-izq img {
+  height: 8mm;
+}
+
+.inf__pie-izq b {
+  display: block;
+  font-size: 7.5pt;
+  font-weight: 700;
+  color: var(--tinta);
+}
+
+.inf__pie-izq span {
+  display: block;
+  font-size: 6.5pt;
+  color: var(--gris);
+}
+
+.inf__pie-der {
+  text-align: right;
+  font-size: 6.5pt;
+  line-height: 1.5;
+  color: #93a0ad;
+}
+
+.inf__nota {
+  margin: 2mm 0 0;
+  font-size: 7pt;
+  font-style: italic;
+  color: var(--gris);
+}

@@ -479,7 +479,7 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
       </div>
 
       {/* ---------- Asistente ---------- */}
-      <MiguePanel ideas={ideas} stats={stats} />
+      <MiguePanel ideas={ideas} stats={stats} timeline={timeline} horas={horas} />
     </div>
   )
 }

@@ -281,13 +281,47 @@
 
 /* -------------------------------------------------------------- Listado */
 
+/*
+ * La cola de moderación, acotada.
+ *
+ * Crecía sin techo: la consulta trae hasta 300 ideas y las apilaba todas, así
+ * que con la feria andando el panel se volvía una tira interminable y el
+ * bloque de Migue quedaba a varias pantallas de scroll. Moderar es la tarea
+ * que se hace de pie y con gente esperando; tener que bajar cincuenta filas
+ * para llegar al asistente es tiempo perdido.
+ *
+ * Con la lista en su propio scroll, todo lo demás del panel —el reinicio, los
+ * gráficos, Migue— queda siempre a la vista, y las ideas se recorren adentro.
+ */
 .list__items {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0.4rem 0 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+
+  max-height: 58vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Barra fina, del color de las líneas: no compite con el contenido. */
+.list__items::-webkit-scrollbar {
+  width: 8px;
+}
+
+.list__items::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar);
+}
+
+.list__items::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+.list__items::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .list__empty {
@@ -1120,4 +1154,91 @@
    botón de Limpiar fuera de la cabecera. */
 .migue__ident > div {
   min-width: 0;
+}
+
+/* ------------------------------------------------- Formato del texto de Migue
+
+   Migue escribe en markdown, y la burbuja lo pintaba crudo: en pantalla salía
+   "**Reclamos puros** (5 de 17)" con los asteriscos a la vista. Ahora se
+   interpreta (ver lib/formatoMigue), y esto le da forma.
+
+   El white-space: pre-wrap de .burbuja se anula acá: ya no hace falta preservar
+   los saltos de línea del texto porque ahora hay párrafos y listas de verdad, y
+   dejarlo sumaría un renglón vacío entre cada bloque.
+   -------------------------------------------------------------------------- */
+
+.burbuja--assistant {
+  white-space: normal;
+}
+
+.md__p {
+  margin: 0 0 0.6em;
+}
+
+.md__p:last-child {
+  margin-bottom: 0;
+}
+
+.md__titulo {
+  margin: 0.9em 0 0.4em;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-hi);
+}
+
+.md__titulo:first-child {
+  margin-top: 0;
+}
+
+.md__lista {
+  margin: 0 0 0.6em;
+  padding-left: 1.15em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22em;
+}
+
+.md__lista:last-child {
+  margin-bottom: 0;
+}
+
+.md__lista li {
+  /* El marcador toma el color del acento: ordena la lectura de un listado
+     largo sin agregar peso tipográfico. */
+  &::marker {
+    color: var(--accent);
+  }
+}
+
+.burbuja strong {
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+.burbuja em {
+  font-style: italic;
+}
+
+.burbuja code {
+  padding: 0.08em 0.34em;
+  border-radius: 5px;
+  border: 1px solid var(--line-soft);
+  background: var(--adm-campo-suave, rgba(6, 12, 20, 0.72));
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 0.88em;
+}
+
+/* Acciones de la cabecera de Migue: exportar y limpiar. */
+.migue__acciones {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
+}
+
+/* El informe no ocupa lugar en el panel: sólo existe al imprimir. */
+.informe-raiz {
+  display: contents;
 }

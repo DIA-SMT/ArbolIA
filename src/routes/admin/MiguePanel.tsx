@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { preguntarAMigue, type MensajeMigue } from '../../lib/ia'
 import { supabase } from '../../lib/supabase'
 import { armarContextoMigue } from '../../lib/contextoMigue'
+import TextoMigue from './TextoMigue'
+import InformePDF from './InformePDF'
+import type { TimelinePoint } from '../../lib/api'
 import type { Idea, Stats } from '../../lib/types'
 
 /**
@@ -22,9 +25,12 @@ const SUGERENCIAS = [
 interface Props {
   ideas: Idea[]
   stats: Stats
+  /** Para el informe: la serie y el rango que el panel tiene a la vista. */
+  timeline: TimelinePoint[]
+  horas: number
 }
 
-export default function MiguePanel({ ideas, stats }: Props) {
+export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
   const [mensajes, setMensajes] = useState<MensajeMigue[]>([])
   const [entrada, setEntrada] = useState('')
   const [pensando, setPensando] = useState(false)
@@ -32,6 +38,26 @@ export default function MiguePanel({ ideas, stats }: Props) {
 
   const hiloRef = useRef<HTMLDivElement>(null)
   const cancelarRef = useRef<AbortController | null>(null)
+
+  /** La última respuesta de Migue: es lo que se exporta como informe. */
+  const ultimaDeMigue = [...mensajes].reverse().find(
+    (m) => m.role === 'assistant' && m.content.trim().length > 0,
+  )?.content
+
+  /*
+   * Exportar es imprimir.
+   *
+   * El informe ya está en el DOM —oculto por CSS— y la hoja de estilos lo
+   * muestra sólo en @media print. Así el navegador exporta con su propio
+   * motor: los gráficos salen vectoriales y el texto sigue siendo texto.
+   * Ver la nota en informe.css sobre por qué no hay librería de PDF.
+   */
+  function imprimirInforme() {
+    // Un cuadro de espera antes de imprimir: si se llama en el mismo tick del
+    // clic, Chrome a veces abre el diálogo con el layout de impresión a medio
+    // aplicar y la primera página sale corrida.
+    requestAnimationFrame(() => window.print())
+  }
 
   // Se sigue la conversación desde abajo, como cualquier chat.
   useEffect(() => {
@@ -131,17 +157,35 @@ export default function MiguePanel({ ideas, stats }: Props) {
             </p>
           </div>
         </div>
-        {mensajes.length > 0 && (
-          <button
-            className="btn btn--ghost"
-            onClick={() => {
-              cancelarRef.current?.abort()
-              setMensajes([])
-              setError(null)
-            }}
-          >
-            Limpiar
-          </button>
+        {ultimaDeMigue && (
+          <div className="migue__acciones">
+            {/*
+              Exporta la ÚLTIMA respuesta, no toda la conversación.
+              Un informe no es un chat: si se volcara el ida y vuelta entero,
+              el PDF empezaría con "¿cuáles son los tres temas que más se
+              repiten?" y eso no se le presenta a nadie. El equipo pregunta
+              hasta que Migue da la respuesta que sirve, y esa es la que
+              exporta.
+            */}
+            <button
+              className="btn btn--ok"
+              onClick={() => imprimirInforme()}
+              disabled={pensando}
+              title="Genera el informe institucional en PDF con esta respuesta"
+            >
+              Exportar PDF
+            </button>
+            <button
+              className="btn btn--ghost"
+              onClick={() => {
+                cancelarRef.current?.abort()
+                setMensajes([])
+                setError(null)
+              }}
+            >
+              Limpiar
+            </button>
+          </div>
         )}
       </header>
 
@@ -160,7 +204,20 @@ export default function MiguePanel({ ideas, stats }: Props) {
         ) : (
           mensajes.map((m, i) => (
             <div key={i} className={`burbuja burbuja--${m.role}`}>
-              {m.content || <span className="burbuja__puntos" aria-label="Pensando" />}
+              {/*
+                Sólo se interpreta el formato de Migue. Lo que escribió la
+                persona se muestra tal cual: si alguien tipea asteriscos, los
+                puso a propósito y no hay por qué convertirlos en negrita.
+              */}
+              {m.content ? (
+                m.role === 'assistant' ? (
+                  <TextoMigue texto={m.content} />
+                ) : (
+                  m.content
+                )
+              ) : (
+                <span className="burbuja__puntos" aria-label="Pensando" />
+              )}
             </div>
           ))
         )}
@@ -186,6 +243,23 @@ export default function MiguePanel({ ideas, stats }: Props) {
           {pensando ? 'Pensando…' : 'Enviar'}
         </button>
       </form>
+
+      {/*
+        El informe vive en el DOM pero no se ve: informe.css lo muestra
+        únicamente dentro de @media print. Montarlo sólo al apretar el botón
+        obligaría a esperar un ciclo de React antes de imprimir, y ahí el
+        diálogo se abre con la página a medio armar.
+      */}
+      {ultimaDeMigue && (
+        <div className="informe-raiz">
+          <InformePDF
+            texto={ultimaDeMigue}
+            stats={stats}
+            timeline={timeline}
+            horas={horas}
+          />
+        </div>
+      )}
     </section>
   )
 }

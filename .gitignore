@@ -13,3 +13,6 @@ scripts/_*
 
 # Cache incremental de TypeScript: se regenera solo.
 *.tsbuildinfo
+
+# Vistas temporales de revision de maquetado.
+public/_revision-*
