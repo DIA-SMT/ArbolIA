@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { placeLeaf } from './leafPlacement'
 import { getCategory } from '../../lib/categories'
 import { pickNextIdea } from './labelRotation'
-import { resolverColisiones } from './labelLayout'
+import { acomodar, type Zona } from './labelLayout'
 import type { Idea } from '../../lib/types'
 
 /** Cuántas ideas se muestran a la vez alrededor de la copa. */
@@ -31,6 +31,31 @@ const CLOCK_MS = 30_000
 const REACH = [1.75, 2.2, 2.65]
 /** Aire mínimo entre dos etiquetas, en píxeles de pantalla. */
 const MARGEN = 14
+
+/**
+ * Los bloques del overlay que una etiqueta no puede tapar.
+ *
+ * Se piden al DOM en vez de tenerlos escritos: sus posiciones dependen del
+ * tamaño de la pantalla y del contenido —el ranking crece con las áreas que
+ * tienen ideas—, así que cualquier número fijo quedaría viejo en cuanto el
+ * LED del stand tuviera otra resolución que el monitor donde se probó.
+ *
+ * Se listan los bloques PINTADOS y no sus contenedores: overlay__left y
+ * overlay__right ocupan toda la altura de la pantalla pero están vacíos en
+ * el medio, y prohibir esa franja entera dejaría a las etiquetas sin los
+ * costados, que es justo donde el árbol las manda.
+ */
+const SELECTOR_PANELES = '.overlay__top, .ask, .panel, .areas, .recent'
+
+function zonasProhibidas(): Zona[] {
+  const zonas: Zona[] = []
+  for (const el of document.querySelectorAll(SELECTOR_PANELES)) {
+    const r = el.getBoundingClientRect()
+    if (r.width < 20 || r.height < 20) continue
+    zonas.push({ izq: r.left, der: r.right, arriba: r.top, abajo: r.bottom })
+  }
+  return zonas
+}
 
 interface Props {
   ideas: Idea[]
@@ -73,6 +98,15 @@ interface Registro {
   destacada: boolean
   /** Desplazamiento vertical aplicado, interpolado entre cuadros. */
   offset: number
+  /** Desplazamiento horizontal: hace falta para esquivar los paneles fijos,
+   *  contra los que bajar no sirve de nada. */
+  offsetX: number
+  /** No hay lugar donde ponerla sin tapar algo: se apaga. */
+  sinLugar: boolean
+  /** Punto de la hoja, origen de la línea guía. */
+  hojaRef: React.RefObject<THREE.Vector3 | null>
+  /** Punta de la línea guía: sigue a la tarjeta cuando ésta se corre. */
+  puntaRef: React.RefObject<THREE.Vector3 | null>
 }
 
 const EMPTY_SLOTS: SlotState[] = Array.from({ length: SLOT_COUNT }, () => ({
@@ -338,6 +372,7 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
   const { camera, size } = useThree()
   const plano = useMemo(() => new THREE.Vector3(), [])
   const proyectado = useMemo(() => new THREE.Vector3(), [])
+  const destino = useMemo(() => new THREE.Vector3(), [])
 
   useFrame(() => {
     const publicadas = (registro.current ?? []).filter((e): e is Registro => e !== null)
@@ -381,8 +416,8 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
       return { entrada: e, x, ancho, y, alto, opacidad }
     })
 
-    // --- 2. Resolución de colisiones -------------------------------
-    const objetivos = resolverColisiones(
+    // --- 2. Acomodo: etiquetas, paneles fijos y bordes --------------
+    const objetivos = acomodar(
       cajas.map((c) => ({
         x: c.x,
         ancho: c.ancho,
@@ -390,19 +425,32 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
         alto: c.alto,
         visible: c.opacidad >= 0.08,
       })),
+      zonasProhibidas(),
+      { ancho: size.width, alto: size.height },
       MARGEN,
     )
 
     // Interpolado: la cámara orbita y el orden vertical de las etiquetas
     // cambia, así que sin suavizado los textos saltarían al cruzarse.
     cajas.forEach((caja, i) => {
-      caja.entrada.offset = THREE.MathUtils.lerp(caja.entrada.offset, objetivos[i], 0.3)
+      caja.entrada.offset = THREE.MathUtils.lerp(caja.entrada.offset, objetivos[i].dy, 0.3)
+      caja.entrada.offsetX = THREE.MathUtils.lerp(caja.entrada.offsetX, objetivos[i].dx, 0.3)
+      caja.entrada.sinLugar = objetivos[i].oculta
     })
 
     // --- 3. Aplicación al DOM y a la línea -------------------------
     for (const caja of cajas) {
-      const { entrada, opacidad } = caja
+      const { entrada } = caja
       const div = entrada.divRef.current!
+
+      /*
+       * Una etiqueta sin lugar se apaga.
+       *
+       * Es la última opción y por eso se decide acá y no en el acomodo: si
+       * no hay dónde ponerla sin tapar el ranking o el título, es preferible
+       * una idea menos en pantalla que una idea ilegible encima de otra cosa.
+       */
+      const opacidad = entrada.sinLugar ? 0 : caja.opacidad
 
       div.style.opacity = String(opacidad)
       /*
@@ -411,13 +459,48 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
        * un estilo en línea mientras corre. Con propiedades separadas las
        * dos cosas conviven sin pisarse.
        */
-      div.style.translate =
-        Math.abs(entrada.offset) > 0.5 ? `0 ${entrada.offset.toFixed(1)}px` : ''
+      const movida = Math.abs(entrada.offset) > 0.5 || Math.abs(entrada.offsetX) > 0.5
+      div.style.translate = movida
+        ? `${entrada.offsetX.toFixed(1)}px ${entrada.offset.toFixed(1)}px`
+        : ''
 
       const linea = entrada.lineaRef.current as THREE.Line | null
       if (linea) {
         const material = linea.material as THREE.Material
         material.opacity = opacidad * (entrada.destacada ? 0.85 : 0.4)
+
+        /*
+         * La línea tiene que terminar DONDE QUEDÓ la tarjeta, no donde está
+         * el ancla.
+         *
+         * Antes el desplazamiento era sólo vertical y de pocos píxeles, así
+         * que el desfase no se notaba. Ahora una etiqueta puede correrse
+         * doscientos píxeles para esquivar un panel, y una línea apuntando
+         * al vacío es peor que la superposición que vino a arreglar.
+         *
+         * Se toma la posición final en pantalla y se la devuelve al mundo a
+         * la misma profundidad del ancla, así el extremo cae exactamente
+         * detrás de la tarjeta.
+         */
+        if (movida && entrada.anclaRef.current) {
+          entrada.anclaRef.current.getWorldPosition(destino)
+          destino.project(camera)
+          destino.x += (entrada.offsetX / size.width) * 2
+          destino.y -= (entrada.offset / size.height) * 2
+          destino.unproject(camera)
+          entrada.puntaRef.current?.copy(destino)
+        } else {
+          entrada.anclaRef.current?.getWorldPosition(destino)
+          entrada.puntaRef.current?.copy(destino)
+        }
+
+        const geo = (linea as unknown as { geometry?: { setPositions?: (p: number[]) => void } })
+          .geometry
+        const punta = entrada.puntaRef.current
+        if (geo?.setPositions && punta && entrada.hojaRef.current) {
+          const h = entrada.hojaRef.current
+          geo.setPositions([h.x, h.y, h.z, punta.x, punta.y, punta.z])
+        }
       }
     }
   })
@@ -441,6 +524,8 @@ function LabelAnchor({
   const holderRef = useRef<HTMLDivElement>(null)
   const anclaRef = useRef<THREE.Object3D>(null)
   const lineRef = useRef<THREE.Object3D>(null)
+  const hojaRef = useRef<THREE.Vector3 | null>(null)
+  const puntaRef = useRef<THREE.Vector3 | null>(null)
   const category = getCategory(idea.category)
 
   // Posición de la hoja: hace falta saber qué número de hoja es dentro de su
@@ -476,6 +561,10 @@ function LabelAnchor({
       leaf,
       anchor,
       points: [leaf, anchor],
+      // La línea se reescribe cuadro a cuadro para seguir a la tarjeta, así
+      // que estos dos vectores son su estado, no una copia decorativa.
+      hoja: leaf.clone(),
+      punta: anchor.clone(),
       plano: new THREE.Vector3(leaf.x, 0, leaf.z).normalize(),
     }
   }, [idea, ideas, slotIndex])
@@ -487,6 +576,9 @@ function LabelAnchor({
       return
     }
 
+    hojaRef.current = geometry.hoja
+    puntaRef.current = geometry.punta
+
     publicar(slotIndex, {
       divRef: holderRef,
       lineaRef: lineRef,
@@ -494,6 +586,10 @@ function LabelAnchor({
       plano: geometry.plano,
       destacada: fresh,
       offset: 0,
+      offsetX: 0,
+      sinLugar: false,
+      hojaRef,
+      puntaRef,
     })
 
     return () => publicar(slotIndex, null)

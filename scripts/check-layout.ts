@@ -9,7 +9,12 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { resolverColisiones, type CajaEtiqueta } from '../src/routes/screen/labelLayout'
+import {
+  acomodar,
+  resolverColisiones,
+  type CajaEtiqueta,
+  type Zona,
+} from '../src/routes/screen/labelLayout'
 
 const MARGEN = 14
 let fallos = 0
@@ -240,6 +245,199 @@ console.log('\nCOLISIÓN DE ETIQUETAS')
     faltantes.length === 0,
     faltantes.length ? `faltan: ${faltantes.join(', ')}` : `${claros.size} tokens redefinidos`,
   )
+}
+
+// ---------------------------------------------------------------------
+// Acomodo contra los paneles fijos del overlay
+// ---------------------------------------------------------------------
+{
+  console.log('\nACOMODO CONTRA LOS PANELES FIJOS')
+
+  const VIEWPORT = { ancho: 1920, alto: 1080 }
+
+  /** Los paneles reales de la pantalla del stand, a escala 1920x1080. */
+  const PANELES: Zona[] = [
+    { izq: 0, der: 300, arriba: 0, abajo: 60 }, // marca SMT
+    { izq: 30, der: 640, arriba: 180, abajo: 560 }, // título + contadores
+    { izq: 1460, der: 1900, arriba: 350, abajo: 700 }, // participación por área
+    { izq: 1460, der: 1900, arriba: 720, abajo: 1000 }, // últimas ideas
+  ]
+
+  const rect = (c: CajaEtiqueta, a: { dx: number; dy: number }): Zona => ({
+    izq: c.x + a.dx - c.ancho / 2,
+    der: c.x + a.dx + c.ancho / 2,
+    arriba: c.y + a.dy - c.alto / 2,
+    abajo: c.y + a.dy + c.alto / 2,
+  })
+
+  const chocan = (a: Zona, b: Zona) =>
+    a.izq < b.der && b.izq < a.der && a.arriba < b.abajo && b.arriba < a.abajo
+
+  const tapaPanel = (r: Zona) => PANELES.some((z) => chocan(r, z))
+
+  // -- Encima del bloque del título --
+  {
+    const cajas: CajaEtiqueta[] = [{ x: 300, ancho: 220, y: 300, alto: 70, visible: true }]
+    const r = acomodar(cajas, PANELES, VIEWPORT, MARGEN)
+    const caja = rect(cajas[0], r[0])
+    check(
+      'sale del bloque del título',
+      !tapaPanel(caja) || r[0].oculta,
+      `dx ${r[0].dx.toFixed(0)}, dy ${r[0].dy.toFixed(0)}, oculta ${r[0].oculta}`,
+    )
+    check(
+      'se aparta de verdad, por donde sea',
+      Math.abs(r[0].dx) + Math.abs(r[0].dy) > 0,
+      'la direccion la elige el algoritmo: lo que importa es que no tape',
+    )
+  }
+
+  // -- Encima del panel de áreas, a la derecha --
+  {
+    const cajas: CajaEtiqueta[] = [{ x: 1600, ancho: 220, y: 500, alto: 70, visible: true }]
+    const r = acomodar(cajas, PANELES, VIEWPORT, MARGEN)
+    check('sale del panel de áreas', !tapaPanel(rect(cajas[0], r[0])) || r[0].oculta)
+    /*
+     * No se le exige una dirección. La primera versión de esta prueba pedía
+     * que saliera por la izquierda, y el algoritmo la sacaba por arriba, que
+     * era un camino más corto y perfectamente válido: la prueba estaba
+     * describiendo una implementación en vez de un requisito.
+     */
+    const q = rect(cajas[0], r[0])
+    check(
+      'al escapar no se va del cuadro',
+      q.izq >= 0 && q.der <= VIEWPORT.ancho && q.arriba >= 0 && q.abajo <= VIEWPORT.alto,
+      `dx ${r[0].dx.toFixed(0)}, dy ${r[0].dy.toFixed(0)}`,
+    )
+  }
+
+  // -- Cuatro contra los bordes --
+  {
+    const cajas: CajaEtiqueta[] = [
+      { x: 40, ancho: 220, y: 100, alto: 70, visible: true },
+      { x: 1890, ancho: 220, y: 900, alto: 70, visible: true },
+      { x: 960, ancho: 220, y: 20, alto: 70, visible: true },
+      { x: 960, ancho: 220, y: 1060, alto: 70, visible: true },
+    ]
+    const r = acomodar(cajas, PANELES, VIEWPORT, MARGEN)
+    // Sólo importan las que se van a ver: una apagada no molesta a nadie.
+    const fuera = cajas.filter((c, i) => {
+      if (r[i].oculta) return false
+      const q = rect(c, r[i])
+      return q.izq < 0 || q.der > VIEWPORT.ancho || q.arriba < 0 || q.abajo > VIEWPORT.alto
+    }).length
+    check('ninguna queda fuera del cuadro', fuera === 0, `${fuera} fuera`)
+  }
+
+  // -- Tres juntas en zona libre --
+  {
+    const cajas: CajaEtiqueta[] = [
+      { x: 960, ancho: 220, y: 300, alto: 70, visible: true },
+      { x: 980, ancho: 220, y: 320, alto: 70, visible: true },
+      { x: 940, ancho: 220, y: 340, alto: 70, visible: true },
+    ]
+    const r = acomodar(cajas, PANELES, VIEWPORT, MARGEN)
+    let choques = 0
+    for (let i = 0; i < cajas.length; i++) {
+      for (let j = i + 1; j < cajas.length; j++) {
+        if (chocan(rect(cajas[i], r[i]), rect(cajas[j], r[j]))) choques++
+      }
+    }
+    check('tres juntas no se pisan entre sí', choques === 0, `${choques} pares`)
+  }
+
+  // -- Dos obstáculos encadenados: el empuje tiene que sumarlos --
+  {
+    /*
+     * El caso que se escapó la primera vez. Con una sola etiqueta ya
+     * colocada el empuje salía bien; con dos, la segunda comparación se
+     * hacía contra la posición vieja y la etiqueta quedaba corta,
+     * superponiéndose igual. En pantalla eran dos ideas ilegibles.
+     */
+    const cajas: CajaEtiqueta[] = [
+      { x: 900, ancho: 220, y: 200, alto: 70, visible: true },
+      { x: 900, ancho: 220, y: 210, alto: 70, visible: true },
+      { x: 900, ancho: 220, y: 220, alto: 70, visible: true },
+      { x: 900, ancho: 220, y: 230, alto: 70, visible: true },
+    ]
+    const r = acomodar(cajas, PANELES, VIEWPORT, MARGEN)
+    let choques = 0
+    for (let i = 0; i < cajas.length; i++) {
+      for (let j = i + 1; j < cajas.length; j++) {
+        if (r[i].oculta || r[j].oculta) continue
+        if (chocan(rect(cajas[i], r[i]), rect(cajas[j], r[j]))) choques++
+      }
+    }
+    check(
+      'cuatro apiladas se separan todas',
+      choques === 0,
+      `${choques} pares, dy: ${r.map((a) => Math.round(a.dy)).join(', ')}`,
+    )
+  }
+
+  // -- Ya está en lugar libre --
+  {
+    const cajas: CajaEtiqueta[] = [{ x: 960, ancho: 220, y: 250, alto: 70, visible: true }]
+    const r = acomodar(cajas, PANELES, VIEWPORT, MARGEN)
+    check(
+      'si ya está en lugar libre no la mueve',
+      r[0].dx === 0 && r[0].dy === 0,
+      'mover algo que no molesta es movimiento sin motivo',
+    )
+  }
+
+  // -- Barrido: ninguna posición de la pantalla debe terminar tapando --
+  {
+    /*
+     * Cada posición se prueba SOLA.
+     *
+     * La primera versión metía las 200 en una misma llamada y daba 145
+     * apagadas, que parecía un desastre del algoritmo y era un disparate del
+     * test: 200 tarjetas de 220x70 son 3.080.000 px² de etiquetas sobre una
+     * pantalla de 2.073.600. No entran, y apagarlas era la respuesta
+     * correcta. Lo que se quiere saber es otra cosa: desde cualquier punto
+     * de la pantalla, ¿encuentra lugar una etiqueta?
+     */
+    const cajas: CajaEtiqueta[] = []
+    const resultados: Array<{ dx: number; dy: number; oculta: boolean }> = []
+    for (let x = 120; x < VIEWPORT.ancho; x += 90) {
+      for (let y = 80; y < VIEWPORT.alto; y += 110) {
+        const c: CajaEtiqueta = { x, ancho: 220, y, alto: 70, visible: true }
+        cajas.push(c)
+        resultados.push(acomodar([c], PANELES, VIEWPORT, MARGEN)[0])
+      }
+    }
+    const r = resultados
+    const tapando = cajas.filter((c, i) => !r[i].oculta && tapaPanel(rect(c, r[i]))).length
+    const ocultas = r.filter((a) => a.oculta).length
+    check(
+      'ninguna visible termina tapando un panel',
+      tapando === 0,
+      `${cajas.length} posiciones probadas, ${tapando} tapando, ${ocultas} apagadas`,
+    )
+
+    /*
+     * El desplazamiento tiene que ser acotado.
+     *
+     * Es la prueba que faltaba cuando el algoritmo empujaba en un ciclo:
+     * en pantalla llegó a poner translate -1240px en una ventana de 922 px
+     * de ancho, y la etiqueta simplemente no se veía. Ninguna verificación
+     * lo cazó porque todas miraban superposiciones, no distancias.
+     */
+    const salto = Math.max(...r.map((a) => Math.hypot(a.dx, a.dy)))
+    check(
+      'ninguna se desplaza más que el cuadro',
+      salto <= Math.hypot(VIEWPORT.ancho, VIEWPORT.alto),
+      `mayor desplazamiento: ${Math.round(salto)} px`,
+    )
+
+    // Y la mayoría tiene que encontrar lugar: apagar es la última opción.
+    check(
+      'la mayoría encuentra lugar',
+      ocultas < cajas.length * 0.35,
+      `${ocultas} de ${cajas.length} apagadas`,
+    )
+  }
 }
 
 console.log(
