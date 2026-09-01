@@ -36,16 +36,22 @@ const MARGEN = 14
  * Los bloques del overlay que una etiqueta no puede tapar.
  *
  * Se piden al DOM en vez de tenerlos escritos: sus posiciones dependen del
- * tamaño de la pantalla y del contenido —el ranking crece con las áreas que
- * tienen ideas—, así que cualquier número fijo quedaría viejo en cuanto el
- * LED del stand tuviera otra resolución que el monitor donde se probó.
+ * tamaño de la pantalla y del contenido, así que cualquier número fijo
+ * quedaría viejo en cuanto el LED del stand tuviera otra resolución que el
+ * monitor donde se probó.
  *
  * Se listan los bloques PINTADOS y no sus contenedores: overlay__left y
  * overlay__right ocupan toda la altura de la pantalla pero están vacíos en
  * el medio, y prohibir esa franja entera dejaría a las etiquetas sin los
  * costados, que es justo donde el árbol las manda.
+ *
+ * OJO AL AGREGAR O QUITAR BLOQUES. Cuando el QR reemplazó al ranking por
+ * área, esta lista quedó nombrando .areas —que ya no existe— y sin nombrar
+ * .qr: el único elemento de la pantalla que el vecino NECESITA pasó a ser el
+ * único que una etiqueta podía tapar. Nada avisa cuando falta uno; el
+ * síntoma es una tarjeta encima.
  */
-const SELECTOR_PANELES = '.overlay__top, .ask, .panel, .areas, .recent'
+const SELECTOR_PANELES = '.overlay__top, .ask, .panel, .qr, .recent'
 
 function zonasProhibidas(): Zona[] {
   const zonas: Zona[] = []
@@ -103,6 +109,9 @@ interface Registro {
   offsetX: number
   /** No hay lugar donde ponerla sin tapar algo: se apaga. */
   sinLugar: boolean
+  /** Ya pasó por el resolvedor al menos una vez. La primera ubicación se
+   *  aplica sin interpolar, para que no se dibuje fuera de lugar. */
+  ubicada: boolean
   /** Punto de la hoja, origen de la línea guía. */
   hojaRef: React.RefObject<THREE.Vector3 | null>
   /** Punta de la línea guía: sigue a la tarjeta cuando ésta se corre. */
@@ -433,9 +442,29 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
     // Interpolado: la cámara orbita y el orden vertical de las etiquetas
     // cambia, así que sin suavizado los textos saltarían al cruzarse.
     cajas.forEach((caja, i) => {
-      caja.entrada.offset = THREE.MathUtils.lerp(caja.entrada.offset, objetivos[i].dy, 0.3)
-      caja.entrada.offsetX = THREE.MathUtils.lerp(caja.entrada.offsetX, objetivos[i].dx, 0.3)
-      caja.entrada.sinLugar = objetivos[i].oculta
+      const e = caja.entrada
+      /*
+       * La PRIMERA ubicación no se interpola: se aplica.
+       *
+       * El suavizado existe porque la cámara orbita y el orden vertical de
+       * las etiquetas cambia; sin él los textos saltarían al cruzarse. Pero
+       * una etiqueta recién aparecida arranca con desplazamiento cero, o sea
+       * dibujada exactamente donde el resolvedor decidió que NO va, y tarda
+       * unos cuadros en llegar a su lugar. En esos cuadros puede estar
+       * encima de la vecina, y una foto de la pantalla la agarra ahí.
+       *
+       * Apareciendo ya ubicada no hay nada que suavizar: la etiqueta entra
+       * con su animación de opacidad en el lugar correcto.
+       */
+      if (!e.ubicada) {
+        e.offset = objetivos[i].dy
+        e.offsetX = objetivos[i].dx
+        e.ubicada = true
+      } else {
+        e.offset = THREE.MathUtils.lerp(e.offset, objetivos[i].dy, 0.3)
+        e.offsetX = THREE.MathUtils.lerp(e.offsetX, objetivos[i].dx, 0.3)
+      }
+      e.sinLugar = objetivos[i].oculta
     })
 
     // --- 3. Aplicación al DOM y a la línea -------------------------
@@ -482,24 +511,44 @@ function useLayoutResolver(registro: React.RefObject<Array<Registro | null>>) {
          * la misma profundidad del ancla, así el extremo cae exactamente
          * detrás de la tarjeta.
          */
-        if (movida && entrada.anclaRef.current) {
-          entrada.anclaRef.current.getWorldPosition(destino)
-          destino.project(camera)
-          destino.x += (entrada.offsetX / size.width) * 2
-          destino.y -= (entrada.offset / size.height) * 2
-          destino.unproject(camera)
-          entrada.puntaRef.current?.copy(destino)
-        } else {
-          entrada.anclaRef.current?.getWorldPosition(destino)
-          entrada.puntaRef.current?.copy(destino)
-        }
-
-        const geo = (linea as unknown as { geometry?: { setPositions?: (p: number[]) => void } })
-          .geometry
+        const ancla = entrada.anclaRef.current
         const punta = entrada.puntaRef.current
-        if (geo?.setPositions && punta && entrada.hojaRef.current) {
-          const h = entrada.hojaRef.current
-          geo.setPositions([h.x, h.y, h.z, punta.x, punta.y, punta.z])
+        const hoja = entrada.hojaRef.current
+
+        if (ancla && punta && hoja) {
+          ancla.getWorldPosition(destino)
+
+          if (movida) {
+            // Al espacio de pantalla, se aplica el corrimiento de la
+            // tarjeta, y de vuelta al mundo a la misma profundidad.
+            destino.project(camera)
+            destino.x += (entrada.offsetX / size.width) * 2
+            destino.y -= (entrada.offset / size.height) * 2
+            destino.unproject(camera)
+          }
+
+          /*
+           * DE MUNDO A LOCAL. Este paso faltaba y era el bug.
+           *
+           * La geometría de la línea vive dentro del grupo que escala con el
+           * crecimiento del árbol, así que sus coordenadas son LOCALES.
+           * Escribir ahí una posición de mundo la divide de hecho por la
+           * escala del grupo: con el árbol en 0.526, el extremo terminaba a
+           * casi la mitad de altura del ancla. Medido, las líneas salían de
+           * la hoja a y≈4.2 y morían en y≈2.4, apuntando hacia abajo y hacia
+           * el tronco en vez de a la tarjeta. En pantalla parecía que no
+           * había líneas.
+           */
+          linea.parent?.worldToLocal(destino)
+          punta.copy(destino)
+
+          const geo = (linea as unknown as {
+            geometry?: { setPositions?: (p: number[]) => void }
+          }).geometry
+
+          if (geo?.setPositions) {
+            geo.setPositions([hoja.x, hoja.y, hoja.z, punta.x, punta.y, punta.z])
+          }
         }
       }
     }
@@ -588,6 +637,7 @@ function LabelAnchor({
       offset: 0,
       offsetX: 0,
       sinLugar: false,
+      ubicada: false,
       hojaRef,
       puntaRef,
     })

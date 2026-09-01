@@ -39,6 +39,34 @@ const MAX_LEVEL = 4
  */
 const LEVEL_UV = [0, 0.4, 0.64, 0.83, 1]
 
+/**
+ * Cuánto se estira cada racimo de follaje alrededor del eje del tronco.
+ *
+ * Es lo que cierra el hueco de la copa. Las ocho ramas dejan boquetes de
+ * hasta 68° entre sus puntas, y ese contraste —un vacío al lado de dos ramas
+ * casi pegadas— se lee como copa desbalanceada. Antes se probó mover las
+ * ramas para repartirlas mejor y empeoró el reparto del follaje: la masa de
+ * hojas no cuelga de la rama madre sino de sus hijas, cuyo giro se
+ * descorrelaciona justamente por el ángulo áureo (ver la nota en buildBranch).
+ *
+ * Estirando el racimo en sentido tangencial, en cambio, el follaje de cada
+ * rama avanza hacia el de la vecina y los dos se solapan, sin tocar el
+ * esqueleto ni inflar la silueta hacia afuera.
+ *
+ * El valor sale de medir. Reparto del follaje en doce sectores, como razón
+ * entre el más poblado y el más vacío:
+ *
+ *   sin estirar (1.0)    2.19
+ *   2.1                  1.87
+ *   2.9  (este)          1.80
+ *
+ * Más allá de 2.9 la ganancia es marginal y los racimos empiezan a leerse
+ * como arcos en vez de masas. check-tree vigila que la razón no vuelva a
+ * pasar de 2.0, así que anular el estiramiento sin entender qué resolvía
+ * pone la verificación en rojo.
+ */
+const ESTIRE_TANGENCIAL = 2.9
+
 export interface Twig {
   curve: THREE.CatmullRomCurve3
   level: number
@@ -577,6 +605,24 @@ function buildAmbientSlots(branches: BranchGeometry[]): AmbientSlot[] {
         const center = twig.curve.getPointAt(Math.min(0.99, at))
         const radius = (isTerminal ? 0.15 : 0.12) + at * 0.09
 
+        /*
+         * El racimo se estira EN SENTIDO TANGENCIAL, no en todas direcciones.
+         *
+         * El hueco de la copa es azimutal: está entre una rama y la vecina.
+         * Agrandar el racimo por igual en los tres ejes también lo empujaría
+         * hacia afuera y hacia el tronco, inflando la silueta sin cerrar
+         * nada. Estirándolo sólo alrededor del eje del tronco, el follaje de
+         * cada rama avanza hacia el de al lado y los dos se solapan.
+         *
+         * Ojo con la dirección: acá "tangencial" es perpendicular al radio
+         * en el plano del suelo, no perpendicular a la ramita. Lo que tiene
+         * que cerrarse es el ángulo visto desde el eje del árbol.
+         */
+        const radial = new THREE.Vector3(center.x, 0, center.z)
+        if (radial.lengthSq() < 1e-6) radial.set(1, 0, 0)
+        radial.normalize()
+        const tangente = new THREE.Vector3().crossVectors(UP, radial).normalize()
+
         for (let i = 0; i < perCluster; i++) {
           // Distribución en volumen, no en cáscara: la nube se ve llena.
           const theta = rng() * Math.PI * 2
@@ -588,6 +634,9 @@ function buildAmbientSlots(branches: BranchGeometry[]): AmbientSlot[] {
             Math.cos(phi) * r * 0.78,
             Math.sin(phi) * Math.sin(theta) * r,
           )
+
+          // Lo que sobra del estiramiento va sólo sobre la tangente.
+          offset.addScaledVector(tangente, offset.dot(tangente) * (ESTIRE_TANGENCIAL - 1))
 
           const normal = offset.clone().normalize()
           if (normal.lengthSq() < 0.01) normal.set(0, 1, 0)

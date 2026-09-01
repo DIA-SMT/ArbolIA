@@ -115,6 +115,40 @@ for (let i = 0; i < centroids.length; i++) {
 }
 check('las 8 ramas están separadas entre sí', tooClose === 0, `${tooClose} pares a <20°`)
 
+/*
+ * El reparto del follaje alrededor del tronco.
+ *
+ * Es el hueco de la copa, medido. Las ocho ramas dejan boquetes de hasta 68°
+ * entre sus puntas, y desde el pasillo de la feria eso se lee como un árbol
+ * desbalanceado. Lo que lo cierra es el estiramiento tangencial de los
+ * racimos (ESTIRE_TANGENCIAL en treeGeometry).
+ *
+ * Se mide como razón entre el sector más poblado y el más vacío. Sin estirar
+ * daba 2.19; con el estiramiento actual, 1.80. El tope de 2.0 deja margen
+ * para retoques y se pone rojo si alguien anula el estiramiento sin saber
+ * qué estaba resolviendo.
+ *
+ * No se pide reparto perfecto: un árbol con las ocho zonas exactamente
+ * iguales se vería como un gráfico de torta.
+ */
+{
+  const sectores = new Array(12).fill(0)
+  for (const s of model.ambientSlots) {
+    const a = (Math.atan2(s.position.z, s.position.x) + Math.PI * 2) % (Math.PI * 2)
+    sectores[Math.floor((a / (Math.PI * 2)) * 12)]++
+  }
+  const total = sectores.reduce((x, y) => x + y, 0)
+  const pct = sectores.map((v) => (v / total) * 100)
+  const razon = Math.max(...pct) / Math.min(...pct)
+
+  check(
+    'el follaje se reparte sin huecos alrededor del tronco',
+    razon <= 2.0,
+    `razón ${razon.toFixed(2)} entre el sector más poblado y el más vacío ` +
+      `(sin estirar los racimos era 2.19)`,
+  )
+}
+
 // --- Determinismo: misma idea, misma hoja ----------------------------
 console.log('\nDETERMINISMO')
 const branchA = getBranchFor(model, 'movilidad')
