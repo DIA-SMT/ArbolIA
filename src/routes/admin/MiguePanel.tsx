@@ -96,14 +96,40 @@ export default function MiguePanel({ ideas, stats }: Props) {
   return (
     <section className="migue">
       <header className="migue__head">
-        <div>
-          <h2 className="migue__title">
-            <span className="migue__dot" aria-hidden />
-            Migue
-          </h2>
-          <p className="migue__sub">
-            Analiza las {ideas.length} propuestas cargadas en el panel
-          </p>
+        {/*
+          El retrato va junto al nombre, no arriba ni de fondo.
+
+          Migue es un asistente al que se le pregunta, así que conviene que
+          tenga cara: leer "Migue" a secas obliga a recordar qué es esto cada
+          vez que se entra al panel. Pero es una herramienta de trabajo, no un
+          personaje: por eso va del tamaño de un avatar y no ocupando media
+          columna.
+
+          El onError es a propósito. Si el archivo falta, el elemento se retira
+          y la cabecera queda como antes, en vez de mostrar el ícono de imagen
+          rota justo arriba del panel que el equipo usa para trabajar.
+        */}
+        <div className="migue__ident">
+          <span className="migue__avatar" aria-hidden>
+            <img
+              src="/marca/migue.jpg"
+              alt=""
+              loading="lazy"
+              onError={(e) => {
+                const cont = e.currentTarget.parentElement
+                if (cont) cont.style.display = 'none'
+              }}
+            />
+          </span>
+          <div>
+            <h2 className="migue__title">
+              <span className="migue__dot" aria-hidden />
+              Migue
+            </h2>
+            <p className="migue__sub">
+              Analiza las {ideas.length} propuestas cargadas en el panel
+            </p>
+          </div>
         </div>
         {mensajes.length > 0 && (
           <button

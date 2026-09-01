@@ -1058,3 +1058,66 @@
   .burbuja { max-width: 92%; }
   .migue__form { flex-direction: column; }
 }
+
+/* ----------------------------------------------------- Retrato de Migue
+
+   El archivo es un personaje 3D sobre fondo BLANCO, y ahí está todo el
+   problema de temas: en claro se integra solo, y en oscuro un cuadrado
+   blanco al lado del título sería lo más brillante de la pantalla.
+
+   La solución no es nueva en este proyecto: es la misma que ya se usa con
+   el logo de la Dirección de IA en la pantalla del stand —"sobre pastilla
+   clara, igual que en las piezas impresas, porque está pensado para fondo
+   blanco"—. Acá el recorte circular hace de pastilla, así que el fondo
+   blanco del archivo deja de ser un accidente y pasa a ser parte del
+   medallón, en los dos temas.
+
+   El encuadre está apretado a la cabeza a propósito: la imagen es de cuerpo
+   entero y a 54 px un cuerpo completo no se lee. Se amplía y se corre hacia
+   arriba para quedarse con la cara y los hombros.
+   -------------------------------------------------------------------- */
+
+.migue__ident {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.migue__avatar {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: block;
+  position: relative;
+
+  /* La pastilla. En claro es casi el papel; en oscuro, un disco claro
+     deliberado que sostiene el retrato sin encandilar. */
+  background: #f4f7fb;
+  border: 1px solid var(--line-mid);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
+}
+
+.migue__avatar img {
+  position: absolute;
+  /* Ampliado y subido: la cabeza queda centrada en el círculo. */
+  width: 260%;
+  height: 260%;
+  left: -80%;
+  top: -12%;
+  object-fit: contain;
+  display: block;
+}
+
+:root[data-tema='claro'] .migue__avatar {
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgb(16 35 61 / 0.12);
+}
+
+/* El subtítulo puede quedar largo al lado del retrato: que no empuje el
+   botón de Limpiar fuera de la cabecera. */
+.migue__ident > div {
+  min-width: 0;
+}

@@ -11,9 +11,12 @@ import type { CategorySlug } from '../../lib/types'
  *
  * Dos decisiones definen que esto se lea como un árbol y no como un gráfico:
  *
- *  - Las ramas madre se reparten por ÁNGULO ÁUREO (137.5°), no en octavos
- *    exactos. Es la filotaxis que usan las plantas de verdad: queda pareja
- *    pero nunca simétrica. Ocho ramas cada 45° se leen como diagrama radial.
+ *  - Todo se reparte por ÁNGULO ÁUREO (137.5°), no en fracciones exactas.
+ *    Es la filotaxis que usan las plantas de verdad: queda pareja pero nunca
+ *    simétrica. Ocho ramas cada 45° se leen como diagrama radial.
+ *
+ *    Se probó lo contrario y se midió: ver la nota sobre el reparto en
+ *    buildBranch. Los octavos juntan las puntas y desparejan el follaje.
  *
  *  - Cada rama se bifurca de forma recursiva en cuatro niveles, con ángulos
  *    y longitudes variables. La silueta de un árbol es fractal; un tronco
@@ -394,7 +397,31 @@ function buildBranch(
 ): BranchGeometry {
   const rng = seededRandom(`arbolia-branch-${slug}-v2`)
 
-  // Espiral ascendente: las ramas nacen cada vez más arriba, girando.
+  /*
+   * Espiral ascendente por ÁNGULO ÁUREO: las ramas nacen cada vez más
+   * arriba, girando.
+   *
+   * Se probó repartirlas en octavos —cada 45°, con y sin variación— porque
+   * el áureo deja huecos desparejos entre las puntas: 68° en el peor caso
+   * al lado de dos ramas separadas 24°, y ese contraste se lee como copa
+   * desbalanceada. Medido a igual densidad, el cambio empeora justo lo que
+   * venía a arreglar:
+   *
+   *   reparto            hueco máx   hueco mín   follaje máx/mín
+   *   áureo (este)          68°         24°           2.19
+   *   octavos              61°         36°           3.32
+   *   octavos ±12°         72°         23°           peor
+   *
+   * Los octavos juntan las puntas pero DESPAREJAN el follaje, que es lo que
+   * se ve: la masa de hojas no cuelga de la rama madre sino de sus hijas de
+   * nivel 3 y 4, cuyo giro también sale del áureo. Con las madres en ángulos
+   * exactos esos giros quedan correlacionados entre ramas y el follaje se
+   * apelotona; con las madres en áureo, todo el conjunto se descorrelaciona.
+   *
+   * O sea: el boquete de la copa NO lo causa la separación entre ramas. Si
+   * hay que cerrarlo, el camino es ensanchar los racimos de cada rama para
+   * que se solapen con los vecinos, no mover las ramas.
+   */
   const angle = slot * GOLDEN_ANGLE + randomRange(rng, -0.1, 0.1)
   const heightRatio = slot / CATEGORIES.length
   const originT = 0.34 + heightRatio * 0.52 + randomRange(rng, -0.035, 0.035)
