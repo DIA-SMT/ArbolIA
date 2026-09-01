@@ -44,9 +44,18 @@ export default function QRPanel() {
         )}
       </div>
 
+      {/*
+        Sin la dirección escrita.
+
+        Estaba debajo del código y no sumaba: nadie tipea una URL mirando una
+        pantalla que ya tiene el QR al lado, y lo que se leía era un dominio
+        de vercel.app en la pantalla de la Municipalidad. La instrucción sola
+        alcanza; el código hace el resto.
+
+        QR_TARGET sigue siendo lo que se codifica, y eso no cambia.
+      */}
       <div className="qr__text">
         <p className="qr__cta">Escaneá el QR y dejá tu idea.</p>
-        <p className="qr__url">{QR_TARGET.replace(/^https?:\/\//, '')}</p>
       </div>
     </div>
   )

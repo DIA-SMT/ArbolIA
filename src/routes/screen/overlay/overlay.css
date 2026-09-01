@@ -615,14 +615,6 @@
   color: var(--text-hi);
 }
 
-.qr__url {
-  margin: 0;
-  font-size: calc(var(--u) * 0.83);
-  letter-spacing: 0.14em;
-  text-transform: lowercase;
-  color: var(--accent);
-}
-
 /* -------------------------------------------------------- Celebración */
 
 .celebration {
@@ -1040,8 +1032,3 @@
   text-wrap: balance;
 }
 
-.overlay__right .qr__url {
-  font-size: calc(var(--u) * 0.7);
-  letter-spacing: 0.08em;
-  word-break: break-all;
-}
