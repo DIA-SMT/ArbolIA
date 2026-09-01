@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { IS_SUPABASE_CONFIGURED } from '../../lib/config'
 import {
   EMPTY_STATS,
   fetchAdminIdeas,
   fetchGoal,
+  fetchPorEdad,
   fetchStats,
   fetchTimeline,
   resetStats,
@@ -15,9 +16,11 @@ import {
 import TimelineChart from './TimelineChart'
 import AreasDonut from './AreasDonut'
 import MiguePanel from './MiguePanel'
+import InformePDF from './InformePDF'
+import { abrirInforme } from './exportarInforme'
 import { GOAL_FALLBACK } from '../../lib/config'
 import { CATEGORIES, getCategory } from '../../lib/categories'
-import type { CategorySlug, Idea, IdeaStatus, Stats } from '../../lib/types'
+import type { AgeStat, CategorySlug, Idea, IdeaStatus, Stats } from '../../lib/types'
 import BotonTema from '../../components/BotonTema'
 import { useTema, type Tema } from '../../lib/tema'
 import './admin.css'
@@ -171,10 +174,44 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
   const [timeline, setTimeline] = useState<TimelinePoint[]>([])
   const [horas, setHoras] = useState(24)
   const [goal, setGoalState] = useState(GOAL_FALLBACK)
+  const [edades, setEdades] = useState<AgeStat[]>([])
+  /** El último análisis de Migue, si escribió alguno. Entra al informe. */
+  const [analisis, setAnalisis] = useState<string | null>(null)
+
+  /** El documento del informe, ya repartido en hojas y fuera de pantalla. */
+  const informeRef = useRef<HTMLDivElement>(null)
+
+  /*
+   * Los datos del informe van memorizados, y no es cosmético.
+   *
+   * InformePDF mide los bloques en un efecto de maqueta y guarda el reparto
+   * en estado. Si este objeto se armara suelto en el JSX sería uno nuevo en
+   * cada render: el efecto volvería a correr, guardaría un reparto nuevo,
+   * eso dispararía otro render, y así. Bucle infinito de renders en el panel
+   * que el equipo usa para moderar.
+   */
+  const datosInforme = useMemo(
+    () => ({ stats, timeline, horas, ideas, edades, goal, analisis }),
+    [stats, timeline, horas, ideas, edades, goal, analisis],
+  )
+
+  /*
+   * Se abre en una pestaña para revisarlo, y desde ahí se guarda como PDF.
+   * Ver la nota larga en exportarInforme.ts sobre por qué no se descarga
+   * directamente.
+   */
+  function exportarInformeInstitucional() {
+    if (!abrirInforme(informeRef.current)) {
+      setError(
+        'El navegador bloqueó la ventana del informe. Permitile abrir ventanas ' +
+          'a este sitio y volvé a intentar.',
+      )
+    }
+  }
 
   const load = useCallback(async () => {
     try {
-      const [rows, freshStats, serie, meta] = await Promise.all([
+      const [rows, freshStats, serie, meta, porEdad] = await Promise.all([
         fetchAdminIdeas({
           category,
           status: status === 'archivadas' ? 'all' : status,
@@ -185,10 +222,14 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
         fetchStats(),
         fetchTimeline(horas),
         fetchGoal(),
+        // El informe cuenta quién participó. Si la función todavía no está
+        // en la base, el informe se arma igual sin esa sección.
+        fetchPorEdad().catch(() => [] as AgeStat[]),
       ])
       setIdeas(rows)
       setStats(freshStats)
       setTimeline(serie)
+      setEdades(porEdad)
       if (meta) setGoalState(meta)
       setError(null)
     } catch {
@@ -267,6 +308,22 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
         </div>
 
         <div className="adm__bar-actions">
+          {/*
+            El informe se genera desde los DATOS, no desde el chat.
+
+            Antes esto vivía adentro del panel de Migue y exportaba su última
+            respuesta: si nadie le había preguntado nada, no había informe. El
+            documento institucional del municipio no puede depender de eso, así
+            que la acción está acá, siempre disponible, y el análisis de Migue
+            entra como una sección cuando existe.
+          */}
+          <button
+            className="btn btn--ok"
+            onClick={exportarInformeInstitucional}
+            title="Abre el informe completo en una pestaña para revisarlo y guardarlo como PDF"
+          >
+            Informe institucional
+          </button>
           <BotonTema tema={tema} onAlternar={alternarTema} />
           <button className="btn btn--ghost" onClick={() => void load()}>
             Actualizar
@@ -479,7 +536,20 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
       </div>
 
       {/* ---------- Asistente ---------- */}
-      <MiguePanel ideas={ideas} stats={stats} timeline={timeline} horas={horas} />
+      <MiguePanel ideas={ideas} stats={stats} onAnalisis={setAnalisis} />
+
+      {/*
+        El informe, armado y fuera de pantalla.
+
+        Se mantiene montado en vez de armarse al apretar el botón: el reparto
+        en hojas necesita medir cada bloque ya dibujado, y hacer eso recién al
+        hacer clic obligaría a esperar un ciclo de React con la pestaña ya
+        abierta. Además así el documento está siempre listo, exista o no una
+        respuesta de Migue.
+      */}
+      <div className="informe-raiz">
+        <InformePDF datos={datosInforme} refDocumento={informeRef} />
+      </div>
     </div>
   )
 }

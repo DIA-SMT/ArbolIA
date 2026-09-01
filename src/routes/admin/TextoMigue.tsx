@@ -27,7 +27,15 @@ export default function TextoMigue({ texto, grafico }: Props) {
   )
 }
 
-function BloqueMigue({
+/**
+ * Un solo bloque de Migue.
+ *
+ * Se exporta porque el informe lo necesita suelto: para repartir el
+ * documento en hojas A4 hay que medir bloque por bloque, y un análisis
+ * entero medido como una pieza no se puede cortar por ningún lado. Ver
+ * InformePDF.
+ */
+export function BloqueMigue({
   bloque,
   grafico,
 }: {

@@ -22,9 +22,19 @@
   margin: 0;
 }
 
+/*
+ * El informe SÍ tiene layout, siempre.
+ *
+ * Antes era `display: none` y se hacía visible sólo al exportar. Eso rompía
+ * lo único que hace falta para repartirlo en páginas: un elemento sin caja
+ * no tiene alto, así que no se puede medir cuánto ocupa cada bloque y no hay
+ * forma de saber dónde cortar la hoja.
+ *
+ * Quien lo esconde en el panel es `.informe-raiz`, que lo manda fuera de
+ * pantalla conservando la maqueta. Ver admin.css.
+ */
 .informe {
-  /* Fuera de impresión no se ve: es un documento, no una vista del panel. */
-  display: none;
+  display: block;
 }
 
 /*
@@ -79,11 +89,24 @@
   print-color-adjust: exact;
 }
 
+/*
+ * ALTO MÍNIMO, NO ALTO FIJO. Es la regla que impide perder contenido.
+ *
+ * Antes era `height: 297mm; overflow: hidden`, y ahí estaba el informe
+ * cortado: cualquier cosa que pasara del alto de la hoja desaparecía sin
+ * dejar rastro. Ni un aviso, ni una barra: el texto simplemente no estaba.
+ *
+ * El reparto en páginas lo calcula paginarBloques.ts midiendo cada bloque,
+ * así que en condiciones normales el contenido entra justo. Esto es la red
+ * abajo: si una medición sale corta, la hoja crece y el navegador la parte
+ * en dos al imprimir. Un documento con una página de más es un problema
+ * menor; un documento al que le falta un párrafo es un documento falso.
+ */
 .inf__pagina {
   position: relative;
   width: 210mm;
-  height: 297mm;
-  overflow: hidden;
+  min-height: 297mm;
+  overflow: visible;
   background: #ffffff;
   page-break-after: always;
   break-after: page;
@@ -197,16 +220,24 @@
 
 /* ------------------------------------------------------------ Cuerpo */
 
+/*
+ * El padding de abajo son los 15 mm del pie.
+ *
+ * El pie está posicionado contra el fondo de la hoja. Si el cuerpo no
+ * reservara ese espacio, el último párrafo quedaría escrito debajo del pie.
+ * Con box-sizing border-box, el min-height incluye los dos paddings, así que
+ * el espacio real de contenido queda en 221 mm en la portada y 254 mm en las
+ * interiores. Esos dos números son exactamente las capacidades que usa
+ * InformePDF para repartir: si se tocan acá, hay que tocarlos allá.
+ */
 .inf__cuerpo {
-  padding: 8mm 14mm 0;
-  /* Alto de la página menos la franja y el pie: si el contenido se pasa,
-     queda recortado en vez de taparse con el pie. */
-  height: calc(297mm - 53mm - 15mm);
-  overflow: hidden;
+  padding: 8mm 14mm 15mm;
+  min-height: calc(297mm - 53mm);
+  overflow: visible;
 }
 
 .inf__cuerpo--interior {
-  height: calc(297mm - 20mm - 15mm);
+  min-height: calc(297mm - 20mm);
 }
 
 .inf__sec {
@@ -408,4 +439,148 @@
   font-size: 7pt;
   font-style: italic;
   color: var(--gris);
+}
+
+/* ------------------------------------------------------------ Tablas */
+
+/*
+ * La tabla acompaña al gráfico, no lo reemplaza.
+ *
+ * El anillo dice de un vistazo qué área pesa más; la tabla dice cuánto
+ * exactamente. Un informe que va a la gestión necesita las dos cosas: el
+ * gráfico para la reunión y el número para la decisión.
+ */
+.inf__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 4mm;
+  font-size: 8.5pt;
+}
+
+.inf__tabla thead th {
+  padding: 2mm 2.5mm;
+  text-align: left;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: var(--azul-profundo);
+}
+
+.inf__tabla thead th:last-child,
+.inf__tabla tbody td:last-child,
+.inf__tabla tbody td:nth-last-child(2) {
+  text-align: right;
+  /* Los números se leen en columna: alineados y de ancho fijo. */
+  font-variant-numeric: tabular-nums;
+}
+
+.inf__tabla tbody td {
+  padding: 1.8mm 2.5mm;
+  border-bottom: 1px solid var(--linea);
+  color: var(--texto);
+}
+
+.inf__tabla tbody tr:nth-child(even) td {
+  background: #f6f9fd;
+}
+
+.inf__tabla tbody td:first-child {
+  font-weight: 600;
+  color: var(--tinta);
+}
+
+/* La barrita de proporción, dentro de la celda. */
+.inf__barra {
+  display: block;
+  height: 1.8mm;
+  border-radius: 1mm;
+  background: var(--celeste);
+  min-width: 0.6mm;
+}
+
+/* ------------------------------------------------------------- Citas */
+
+/*
+ * Lo que escribió un vecino, con su letra.
+ *
+ * Va en cursiva y entre comillas porque es una cita textual: el informe no
+ * la reescribe ni la corrige. La barra de color al costado distingue de un
+ * vistazo la propuesta del reclamo, que es la misma lectura que hace la
+ * instalación con la hoja y el fruto.
+ */
+.inf__cita {
+  position: relative;
+  padding: 2.6mm 3mm 2.6mm 4.5mm;
+  margin: 0 0 2.2mm;
+  background: #f8fafd;
+  border-radius: 0 1.4mm 1.4mm 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.inf__cita::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1.2mm;
+  border-radius: 1mm 0 0 1mm;
+  background: var(--azul);
+}
+
+.inf__cita--critica {
+  background: #fefaf0;
+}
+
+.inf__cita--critica::before {
+  background: var(--amarillo);
+}
+
+.inf__cita p {
+  margin: 0;
+  font-size: 8.5pt;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--tinta);
+}
+
+.inf__cita span {
+  display: block;
+  margin-top: 1.2mm;
+  font-size: 6.5pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+/* ------------------------------------------------------- Maquinaria */
+
+/*
+ * Cada bloque crea su propio contexto de formato.
+ *
+ * Sin esto, los márgenes de un párrafo se escapan del contenedor que lo
+ * envuelve y el alto medido sale MENOR que el alto real. El reparto en hojas
+ * queda corto y el contenido se pasa. Con flow-root el margen queda adentro,
+ * así que lo que se mide es exactamente lo que después se dibuja.
+ */
+.inf__bloque {
+  display: flow-root;
+}
+
+/*
+ * El medidor: mismo contenido y mismo ancho, fuera de la vista.
+ *
+ * Va con position absolute y no con display:none porque un subárbol oculto
+ * así no calcula maqueta: no tendría alto y no habría nada que medir. Es el
+ * mismo motivo por el que .informe dejó de ser display:none.
+ */
+.inf__medidor {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 210mm;
+  pointer-events: none;
 }

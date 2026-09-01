@@ -3,9 +3,6 @@ import { preguntarAMigue, type MensajeMigue } from '../../lib/ia'
 import { supabase } from '../../lib/supabase'
 import { armarContextoMigue } from '../../lib/contextoMigue'
 import TextoMigue from './TextoMigue'
-import InformePDF from './InformePDF'
-import { abrirInforme } from './exportarInforme'
-import type { TimelinePoint } from '../../lib/api'
 import type { Idea, Stats } from '../../lib/types'
 
 /**
@@ -26,12 +23,19 @@ const SUGERENCIAS = [
 interface Props {
   ideas: Idea[]
   stats: Stats
-  /** Para el informe: la serie y el rango que el panel tiene a la vista. */
-  timeline: TimelinePoint[]
-  horas: number
+  /**
+   * Avisa hacia arriba cuál es el último análisis de Migue.
+   *
+   * Antes este panel exportaba el PDF él mismo, y el documento terminaba
+   * siendo la última respuesta del chat enmarcada: sin respuesta no había
+   * informe. Ahora el informe lo arma el panel desde los datos, y lo que
+   * aporta Migue es una sección más. Por eso el análisis sube en vez de
+   * quedarse acá.
+   */
+  onAnalisis?: (texto: string | null) => void
 }
 
-export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
+export default function MiguePanel({ ideas, stats, onAnalisis }: Props) {
   const [mensajes, setMensajes] = useState<MensajeMigue[]>([])
   const [entrada, setEntrada] = useState('')
   const [pensando, setPensando] = useState(false)
@@ -40,26 +44,18 @@ export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
   const hiloRef = useRef<HTMLDivElement>(null)
   const cancelarRef = useRef<AbortController | null>(null)
 
-  /** La última respuesta de Migue: es lo que se exporta como informe. */
+  /** La última respuesta de Migue: es la que entra al informe como análisis. */
   const ultimaDeMigue = [...mensajes].reverse().find(
     (m) => m.role === 'assistant' && m.content.trim().length > 0,
   )?.content
 
-  /** El informe armado en el DOM, oculto. De acá lo toma la exportación. */
-  const informeRef = useRef<HTMLDivElement>(null)
-
-  /*
-   * Exportar abre el informe en una pestaña aparte para verlo, y desde ahí se
-   * guarda como PDF. Ver la nota larga en exportarInforme.ts.
-   */
-  function exportar() {
-    if (!abrirInforme(informeRef.current)) {
-      setError(
-        'El navegador bloqueó la ventana del informe. Permitile abrir ventanas ' +
-          'a este sitio y volvé a intentar.',
-      )
-    }
-  }
+  // Mientras Migue está escribiendo, su respuesta llega por partes: se avisa
+  // hacia arriba sólo cuando terminó, para no rearmar el informe en cada
+  // fragmento del stream.
+  useEffect(() => {
+    if (pensando) return
+    onAnalisis?.(ultimaDeMigue ?? null)
+  }, [ultimaDeMigue, pensando, onAnalisis])
 
   // Se sigue la conversación desde abajo, como cualquier chat.
   useEffect(() => {
@@ -161,22 +157,9 @@ export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
         </div>
         {ultimaDeMigue && (
           <div className="migue__acciones">
-            {/*
-              Exporta la ÚLTIMA respuesta, no toda la conversación.
-              Un informe no es un chat: si se volcara el ida y vuelta entero,
-              el PDF empezaría con "¿cuáles son los tres temas que más se
-              repiten?" y eso no se le presenta a nadie. El equipo pregunta
-              hasta que Migue da la respuesta que sirve, y esa es la que
-              exporta.
-            */}
-            <button
-              className="btn btn--ok"
-              onClick={exportar}
-              disabled={pensando}
-              title="Abre el informe institucional en una pestaña para revisarlo y guardarlo como PDF"
-            >
-              Exportar PDF
-            </button>
+            <span className="migue__aviso">
+              Su último análisis entra en el informe
+            </span>
             <button
               className="btn btn--ghost"
               onClick={() => {
@@ -246,22 +229,6 @@ export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
         </button>
       </form>
 
-      {/*
-        El informe vive en el DOM pero no se ve: informe.css lo muestra
-        únicamente dentro de @media print. Montarlo sólo al apretar el botón
-        obligaría a esperar un ciclo de React antes de imprimir, y ahí el
-        diálogo se abre con la página a medio armar.
-      */}
-      {ultimaDeMigue && (
-        <div className="informe-raiz" ref={informeRef}>
-          <InformePDF
-            texto={ultimaDeMigue}
-            stats={stats}
-            timeline={timeline}
-            horas={horas}
-          />
-        </div>
-      )}
     </section>
   )
 }

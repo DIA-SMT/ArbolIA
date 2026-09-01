@@ -1241,11 +1241,12 @@
 /*
  * El informe está en el DOM pero no se ve.
  *
- * No va con display:contents: ese valor no crea un nodo real, y la
- * exportación necesita leer el innerHTML de este contenedor. Y no va con
- * display:none tampoco, porque un subárbol oculto así no calcula layout y los
- * SVG de los gráficos saldrían sin medidas. Se lo saca de la vista sin
- * quitarlo del flujo de cálculo.
+ * Tiene que calcular maqueta igual, y por dos motivos: los SVG de los
+ * gráficos necesitan medidas para dibujarse, y el reparto en hojas A4 se hace
+ * midiendo el alto real de cada bloque ya dibujado (ver InformePDF). Por eso
+ * no va con display:none —un subárbol oculto así no mide nada— ni con
+ * display:contents, que no crea un nodo del que agarrarse. Se lo saca de la
+ * vista sin sacarlo del cálculo.
  */
 .informe-raiz {
   position: absolute;
@@ -1253,4 +1254,19 @@
   left: -9999px;
   top: 0;
   pointer-events: none;
+}
+
+/*
+ * El aviso reemplaza al botón que había acá.
+ *
+ * Antes este lugar tenía "Exportar PDF", y ese botón exportaba la última
+ * respuesta del chat: el informe institucional del municipio salía siendo un
+ * mensaje enmarcado. Ahora el informe se genera desde los datos, con el botón
+ * de la cabecera del panel, y lo que corresponde decir acá es qué aporta
+ * Migue: su análisis entra como una sección.
+ */
+.migue__aviso {
+  font-size: 0.74rem;
+  color: var(--text-low);
+  letter-spacing: 0.01em;
 }
