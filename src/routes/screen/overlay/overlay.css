@@ -1001,3 +1001,47 @@
      que corresponde es el verde de papel del manual. */
   color: var(--texto-hero);
 }
+
+/* -------------------------------------------------- QR en la columna
+
+   El .qr original se diseñó para una banda horizontal al pie: tarjeta a la
+   izquierda, texto al costado. Ahora vive en la columna derecha, que a
+   1280 px mide unos 200: en fila, el QR quedaría del tamaño de una estampilla
+   y el texto cortado.
+
+   Apilado, el código puede ocupar todo el ancho de la columna, que es lo
+   único que importa — un QR chico no se escanea desde donde está parada la
+   gente. Es el elemento más funcional de la pantalla, no un adorno.
+   -------------------------------------------------------------------- */
+
+.overlay__right .qr {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.8vh;
+  padding: 1.1vh;
+  text-align: center;
+}
+
+.overlay__right .qr__card {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  padding: 4%;
+}
+
+.overlay__right .qr__text {
+  align-items: center;
+  gap: 0.2em;
+}
+
+.overlay__right .qr__cta {
+  font-size: calc(var(--u) * 1.15);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.overlay__right .qr__url {
+  font-size: calc(var(--u) * 0.7);
+  letter-spacing: 0.08em;
+  word-break: break-all;
+}

@@ -278,6 +278,15 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<Idea> {
 export interface AdminFilters {
   category?: CategorySlug | 'all'
   status?: IdeaStatus | 'all'
+  /**
+   * Propuestas, críticas, o todo.
+   *
+   * El panel no leía la columna tipo, así que una crítica y una propuesta se
+   * veían exactamente igual en la cola de moderación. Para el informe
+   * posterior son dos cosas distintas: una pide algo, la otra reclama algo,
+   * y el equipo necesita poder mirarlas por separado.
+   */
+  tipo?: 'propuesta' | 'critica' | 'all'
   search?: string
   limit?: number
   /**
@@ -298,7 +307,7 @@ export async function fetchAdminIdeas(filters: AdminFilters = {}): Promise<Idea[
     // El panel sí ve los datos internos: los necesita para moderar y para
     // el informe posterior.
     .select(
-      'id, text, category, device_id, status, archived_at, created_at, author_name, age_range, revision_motivo',
+      'id, text, category, device_id, status, archived_at, created_at, author_name, age_range, revision_motivo, tipo',
     )
     .order('created_at', { ascending: false })
     .limit(filters.limit ?? 300)
@@ -312,6 +321,9 @@ export async function fetchAdminIdeas(filters: AdminFilters = {}): Promise<Idea[
   }
   if (filters.status && filters.status !== 'all') {
     query = query.eq('status', filters.status)
+  }
+  if (filters.tipo && filters.tipo !== 'all') {
+    query = query.eq('tipo', filters.tipo)
   }
   if (filters.search && filters.search.trim()) {
     query = query.ilike('text', `%${filters.search.trim()}%`)

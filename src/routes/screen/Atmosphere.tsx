@@ -10,13 +10,16 @@ const FIELD_HEIGHT = 6.2
 
 interface Props {
   growth: GrowthProfile
+  /** Escala DIBUJADA del árbol. El suelo la sigue para no despegarse de
+   *  las raíces cuando la copa crece. La escribe GrowthRig. */
+  escalaRef?: React.MutableRefObject<number>
 }
 
 /**
  * Aire de la instalación: polvo luminoso en suspensión y el halo del suelo.
  * Es lo que da profundidad y hace que el árbol no flote en un vacío negro.
  */
-export default function Atmosphere({ growth }: Props) {
+export default function Atmosphere({ growth, escalaRef }: Props) {
   const motesRef = useRef<THREE.Points>(null)
   const glow = useMemo(() => getGlowTexture(), [])
 
@@ -79,6 +82,8 @@ export default function Atmosphere({ growth }: Props) {
     [],
   )
 
+  const sueloRef = useRef<THREE.Group>(null)
+
   // Halo del suelo: ancla el árbol y sugiere la luz que sube de las raíces.
   const groundTexture = useMemo(() => makeGroundTexture(), [])
   const groundMaterial = useMemo(
@@ -90,6 +95,28 @@ export default function Atmosphere({ growth }: Props) {
         blending: THREE.AdditiveBlending,
         toneMapped: false,
         opacity: 0.7,
+        fog: false,
+      }),
+    [groundTexture],
+  )
+
+  /*
+   * Halo de contacto: la misma textura radial, más chica y más concentrada.
+   *
+   * Reusa groundTexture a propósito: dos degradados distintos se leerían como
+   * dos manchas superpuestas. Con la misma, el resultado es una sola pileta
+   * de luz que se intensifica hacia el centro.
+   */
+  const contactoMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: groundTexture,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+        opacity: 0.45,
+        color: new THREE.Color('#7cf0b4'),
         fog: false,
       }),
     [groundTexture],
@@ -128,6 +155,20 @@ export default function Atmosphere({ growth }: Props) {
     pos.needsUpdate = true
     material.opacity = 0.4 + growth.glowIntensity * 0.16
     groundMaterial.opacity = 0.45 + growth.glowIntensity * 0.22
+    contactoMaterial.opacity = 0.3 + growth.glowIntensity * 0.3
+
+    /*
+     * El suelo sigue al árbol.
+     *
+     * Se escala el grupo entero, así el disco crece y baja a la vez: en Brote
+     * queda ajustado al pie del árbol y en Pleno acompaña la apertura de las
+     * raíces sin dejarlas colgando ni atravesarlo.
+     */
+    const suelo = sueloRef.current
+    if (suelo && escalaRef) {
+      const e = escalaRef.current || 1
+      suelo.scale.set(e, e, e)
+    }
   })
 
   return (
@@ -143,9 +184,37 @@ export default function Atmosphere({ growth }: Props) {
 
       <points ref={motesRef} geometry={geometry} material={material} frustumCulled={false} />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.92, 0]} material={groundMaterial}>
-        <circleGeometry args={[5.6, 64]} />
-      </mesh>
+      {/*
+        El suelo, apoyado en las puntas de las raíces.
+
+        Antes era un disco a una altura fija de -0.92. El árbol escala con la
+        participación: en Brote las raíces llegan a -0.55 y el halo quedaba
+        flotando medio metro por debajo, sin tocar nada; en Pleno bajan a
+        -1.16 y las raíces atravesaban el suelo por abajo. En los dos casos
+        se perdía lo único que este disco tiene que hacer, que es dar la
+        sensación de que el árbol está apoyado en algo.
+
+        Ahora la altura y el tamaño siguen la escala dibujada, así que el
+        contacto se mantiene en cualquier etapa.
+      */}
+      <group ref={sueloRef}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.08, 0]} material={groundMaterial}>
+          <circleGeometry args={[5.6, 64]} />
+        </mesh>
+
+        {/*
+          Segundo halo, chico y apretado, justo donde las raíces se hunden.
+          El disco grande da ambiente; este da CONTACTO. Sin él el árbol se
+          lee sobre una mancha de luz, no dentro de ella.
+        */}
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -1.02, 0]}
+          material={contactoMaterial}
+        >
+          <circleGeometry args={[2.5, 48]} />
+        </mesh>
+      </group>
     </group>
   )
 }

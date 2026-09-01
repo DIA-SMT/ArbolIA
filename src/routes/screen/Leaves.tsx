@@ -19,8 +19,8 @@ import type { GrowthProfile, Idea } from '../../lib/types'
  * El de las ciudadanas no se recorta por calidad: son las hojas de las
  * personas que participaron y no pueden desaparecer por rendimiento.
  */
-const MAX_LEAVES = 2300
-const MAX_AMBIENT = 9200
+const MAX_LEAVES = 3000
+const MAX_AMBIENT = 16000
 /** Duración del brote de una hoja recién integrada. */
 const SPROUT_MS = 1100
 /** Las hojas ciudadanas van mas grandes que el follaje base: tienen que

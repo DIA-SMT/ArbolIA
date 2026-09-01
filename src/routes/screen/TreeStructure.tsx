@@ -97,7 +97,17 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
     () =>
       createEnergyMaterial({
         energyColor: '#3cb4f0',
-        barkColor: '#12212e',
+        /*
+         * La corteza del tronco.
+         *
+         * Era #12212e, que sobre el fondo #050a12 de la instalación se lee
+         * negro: el tronco quedaba como una silueta recortada, sin volumen,
+         * y era lo primero que saltaba mirando el render a resolución de LED.
+         * El shader además lo oscurece por grosor —a propósito, las ramitas
+         * finas van más claras— así que el tronco es la parte que más
+         * necesita el valor de partida alto.
+         */
+        barkColor: '#26485f',
         speed: 0.1,
         pulseCount: 1.7,
         direction: 1,

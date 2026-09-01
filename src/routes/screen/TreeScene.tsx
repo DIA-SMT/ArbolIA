@@ -89,7 +89,7 @@ export default function TreeScene({
 
       <CameraRig celebration={celebration} escalaRef={escalaRef} />
 
-      <Atmosphere growth={growth} />
+      <Atmosphere growth={growth} escalaRef={escalaRef} />
 
       {/*
         Todo el árbol vive dentro del mismo grupo escalado: estructura,

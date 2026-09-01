@@ -35,6 +35,8 @@ type CategoryFilter = CategorySlug | 'all'
  * jornada anterior mientras los contadores dicen cero.
  */
 type StatusFilter = IdeaStatus | 'all' | 'archivadas'
+/** Propuesta, critica, o las dos. Ver AdminFilters.tipo en lib/api. */
+type TipoFilter = 'propuesta' | 'critica' | 'all'
 
 export default function AdminRoute() {
   const [session, setSession] = useState<'checking' | 'out' | 'in'>('checking')
@@ -160,6 +162,7 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [status, setStatus] = useState<StatusFilter>('all')
+  const [tipo, setTipo] = useState<TipoFilter>('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -175,6 +178,7 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
         fetchAdminIdeas({
           category,
           status: status === 'archivadas' ? 'all' : status,
+          tipo,
           search,
           archivadas: status === 'archivadas',
         }),
@@ -192,7 +196,7 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
     } finally {
       setLoading(false)
     }
-  }, [category, status, search, horas])
+  }, [category, status, tipo, search, horas])
 
   useEffect(() => {
     void load()
@@ -326,6 +330,24 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
               <option value="hidden">Retiradas</option>
               <option value="archivadas">Archivadas (reinicios anteriores)</option>
             </select>
+
+            {/*
+              Propuestas y críticas son dos cosas distintas.
+              Una pide algo, la otra reclama algo, y en la pantalla del stand
+              se comportan al revés: la propuesta cuelga de la copa, la crítica
+              cae a las raíces. Hasta acá el panel ni leía la columna, así que
+              en la cola de moderación se veían idénticas y para el informe
+              posterior no había forma de separarlas.
+            */}
+            <select
+              className="filters__select"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as TipoFilter)}
+            >
+              <option value="all">Propuestas y críticas</option>
+              <option value="propuesta">🌿 Sólo propuestas</option>
+              <option value="critica">🍂 Sólo críticas</option>
+            </select>
           </div>
 
           {loading ? (
@@ -361,6 +383,18 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
                           })}
                         </span>
                         <StatusPill status={idea.status} />
+                        {/*
+                          La crítica se marca; la propuesta no.
+                          Marcar las dos llenaría la lista de pastillas que no
+                          dicen nada: la propuesta es el caso normal, y lo que
+                          el equipo necesita ver de un vistazo es cuál de estas
+                          entradas es un reclamo.
+                        */}
+                        {idea.tipo === 'critica' && (
+                          <span className="pill pill--critica" title="Cae a las raíces, no cuelga de la copa">
+                            🍂 Crítica
+                          </span>
+                        )}
                       </div>
                       {/*
                         Por qué está en la cola. Sin esto, quien modera lee

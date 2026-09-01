@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import AnimatedNumber from '../../../components/AnimatedNumber'
 import CelebrationOverlay from './CelebrationOverlay'
+import QRPanel from './QRPanel'
 import { getGoalProgress } from '../../../lib/growth'
 import { CATEGORIES } from '../../../lib/categories'
 import type { ConnectionStatus } from '../../../hooks/useLiveTree'
@@ -128,29 +129,20 @@ export default function ScreenOverlay({
         </div>
       </aside>
 
-      {/* ---------- Columna derecha: áreas + últimas ideas ---------- */}
+      {/* ---------- Columna derecha: QR + últimas ideas ---------- */}
       <aside className="overlay__right">
-        <div className="areas">
-          <p className="areas__title">Participación por área</p>
-          <ul className="areas__list">
-            {rankCategories(stats).map((cat) => (
-              <li key={cat.slug} className="areas__item">
-                <span className="areas__emoji">{cat.emoji}</span>
-                <span className="areas__label">{cat.label}</span>
-                <span className="areas__bar">
-                  <span
-                    className="areas__bar-fill"
-                    style={{
-                      width: `${cat.share * 100}%`,
-                      background: `linear-gradient(90deg, ${cat.color}22, ${cat.color})`,
-                    }}
-                  />
-                </span>
-                <span className="areas__total">{cat.total}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/*
+          El QR ocupa el lugar que tenía el ranking por área.
+
+          El ranking era lindo y no servía para nada en el stand: nadie mira
+          una pantalla para enterarse de que Espacios Públicos va 5 a 2. La
+          información de las áreas ya está en el árbol, que es lo que la gente
+          mira — cada rama tiene su color y su masa de follaje.
+
+          En cambio, sin QR visible no hay forma de participar. Es la única
+          cosa de esta pantalla que el vecino NECESITA, y estaba faltando.
+        */}
+        <QRPanel />
 
         {recentIdeas.length > 0 && (
           <div className="recent">
@@ -169,13 +161,6 @@ export default function ScreenOverlay({
           </div>
         )}
       </aside>
-
-      {/*
-        El QR va cuando la app esté publicada y tenga URL real.
-        El componente queda listo en ./QRPanel: para reponerlo alcanza con
-        volver a montar <QRPanel /> acá y reactivar la fila 'bottom' y la
-        banda inferior del encuadre de cámara (ver TreeScene).
-      */}
 
       {/*
         La burbuja central se retiro: mostraba una idea por vez y tapaba el
@@ -225,34 +210,6 @@ function useRotating<T>(items: T[], intervalMs: number): T {
   return items[index]
 }
 
-interface RankedCategory {
-  slug: string
-  label: string
-  emoji: string
-  color: string
-  total: number
-  share: number
-}
-
-/** Áreas ordenadas por participación, con la barra normalizada al líder. */
-function rankCategories(stats: Stats): RankedCategory[] {
-  const source =
-    stats.byCategory.length > 0
-      ? stats.byCategory
-      : CATEGORIES.map((c) => ({
-          slug: c.slug,
-          label: c.label,
-          emoji: c.emoji,
-          color: c.color,
-          total: 0,
-        }))
-
-  const max = Math.max(1, ...source.map((c) => c.total))
-
-  return [...source]
-    .sort((a, b) => b.total - a.total)
-    .map((c) => ({ ...c, share: c.total / max }))
-}
 
 function colorFor(slug: string): string {
   return CATEGORIES.find((c) => c.slug === slug)?.color ?? '#22d3ee'

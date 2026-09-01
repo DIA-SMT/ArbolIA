@@ -471,7 +471,7 @@ function buildLeafSlots(rng: () => number, twigs: Twig[]): LeafSlot[] {
     // Sólo las ramitas de los dos últimos niveles llevan hoja.
     if (twig.level < MAX_LEVEL - 1) return
 
-    const density = twig.level === MAX_LEVEL ? 15 : 8
+    const density = twig.level === MAX_LEVEL ? 19 : 11
     const from = twig.level === MAX_LEVEL ? 0.16 : 0.55
 
     for (let i = 0; i < density; i++) {
@@ -542,8 +542,8 @@ function buildAmbientSlots(branches: BranchGeometry[]): AmbientSlot[] {
 
     tips.forEach((twig) => {
       const isTerminal = twig.level === MAX_LEVEL
-      const clusters = isTerminal ? 6 : 3
-      const perCluster = isTerminal ? 13 : 7
+      const clusters = isTerminal ? 8 : 4
+      const perCluster = isTerminal ? 17 : 9
 
       for (let c = 0; c < clusters; c++) {
         const at = 0.34 + (c / clusters) * 0.62

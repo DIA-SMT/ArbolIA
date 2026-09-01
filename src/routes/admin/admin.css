@@ -373,6 +373,19 @@
   color: var(--texto-danger, #fecdd3);
 }
 
+/*
+ * La crítica.
+ *
+ * Deliberadamente NO va en rojo: una crítica no es un problema ni algo que
+ * haya que moderar con más dureza. Es participación igual de válida que una
+ * propuesta, y en la instalación es la que alimenta las raíces. El ámbar
+ * distingue sin acusar.
+ */
+.pill--critica {
+  border-color: color-mix(in srgb, var(--accent-gold) 40%, transparent);
+  color: var(--texto-warn-suave, #e8b464);
+}
+
 /* -------------------------------------------------------------- Lateral */
 
 .side {
