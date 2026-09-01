@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { armarContextoMigue } from '../../lib/contextoMigue'
 import TextoMigue from './TextoMigue'
 import InformePDF from './InformePDF'
+import { abrirInforme } from './exportarInforme'
 import type { TimelinePoint } from '../../lib/api'
 import type { Idea, Stats } from '../../lib/types'
 
@@ -44,19 +45,20 @@ export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
     (m) => m.role === 'assistant' && m.content.trim().length > 0,
   )?.content
 
+  /** El informe armado en el DOM, oculto. De acá lo toma la exportación. */
+  const informeRef = useRef<HTMLDivElement>(null)
+
   /*
-   * Exportar es imprimir.
-   *
-   * El informe ya está en el DOM —oculto por CSS— y la hoja de estilos lo
-   * muestra sólo en @media print. Así el navegador exporta con su propio
-   * motor: los gráficos salen vectoriales y el texto sigue siendo texto.
-   * Ver la nota en informe.css sobre por qué no hay librería de PDF.
+   * Exportar abre el informe en una pestaña aparte para verlo, y desde ahí se
+   * guarda como PDF. Ver la nota larga en exportarInforme.ts.
    */
-  function imprimirInforme() {
-    // Un cuadro de espera antes de imprimir: si se llama en el mismo tick del
-    // clic, Chrome a veces abre el diálogo con el layout de impresión a medio
-    // aplicar y la primera página sale corrida.
-    requestAnimationFrame(() => window.print())
+  function exportar() {
+    if (!abrirInforme(informeRef.current)) {
+      setError(
+        'El navegador bloqueó la ventana del informe. Permitile abrir ventanas ' +
+          'a este sitio y volvé a intentar.',
+      )
+    }
   }
 
   // Se sigue la conversación desde abajo, como cualquier chat.
@@ -169,9 +171,9 @@ export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
             */}
             <button
               className="btn btn--ok"
-              onClick={() => imprimirInforme()}
+              onClick={exportar}
               disabled={pensando}
-              title="Genera el informe institucional en PDF con esta respuesta"
+              title="Abre el informe institucional en una pestaña para revisarlo y guardarlo como PDF"
             >
               Exportar PDF
             </button>
@@ -251,7 +253,7 @@ export default function MiguePanel({ ideas, stats, timeline, horas }: Props) {
         diálogo se abre con la página a medio armar.
       */}
       {ultimaDeMigue && (
-        <div className="informe-raiz">
+        <div className="informe-raiz" ref={informeRef}>
           <InformePDF
             texto={ultimaDeMigue}
             stats={stats}

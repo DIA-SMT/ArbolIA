@@ -128,7 +128,12 @@ export default function ScreenRoute() {
         {import.meta.env.DEV && <DevBridge />}
       </Canvas>
 
-      {flags.diagnostics && <DiagnosticsHud data={diag} fx={flags.postprocessing} />}
+      {flags.diagnostics && <DiagnosticsHud
+          data={diag}
+          fx={flags.postprocessing}
+          calidad={quality}
+          calidadFijada={flags.calidadFijada !== null}
+        />}
 
       <ScreenOverlay
         stats={tree.stats}

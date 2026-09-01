@@ -27,23 +27,18 @@
   display: none;
 }
 
-@media print {
-  /* En impresión desaparece el panel y queda sólo el informe. */
-  body > *:not(.informe-raiz) {
-    display: none !important;
-  }
-
-  .informe {
-    display: block;
-  }
-
-  html,
-  body {
-    background: #ffffff !important;
-    margin: 0;
-    padding: 0;
-  }
-}
+/*
+ * Acá NO hay reglas de @media print para el panel, y es a propósito.
+ *
+ * La primera versión ocultaba el panel con `body > *:not(.informe-raiz)` para
+ * imprimir la misma página. Salía en blanco: el informe vive dentro del panel
+ * de Migue, a cuatro niveles de body, así que esa regla escondía justamente al
+ * contenedor que lo tenía adentro. Y además dejaba al equipo en el diálogo de
+ * impresión sin haber visto el documento.
+ *
+ * El informe se abre en su propia pestaña (ver exportarInforme.ts), donde es
+ * todo el documento y no hay nada que ocultar.
+ */
 
 /*
  * El informe define su propio box-sizing.

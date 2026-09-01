@@ -1238,7 +1238,19 @@
   flex: none;
 }
 
-/* El informe no ocupa lugar en el panel: sólo existe al imprimir. */
+/*
+ * El informe está en el DOM pero no se ve.
+ *
+ * No va con display:contents: ese valor no crea un nodo real, y la
+ * exportación necesita leer el innerHTML de este contenedor. Y no va con
+ * display:none tampoco, porque un subárbol oculto así no calcula layout y los
+ * SVG de los gráficos saldrían sin medidas. Se lo saca de la vista sin
+ * quitarlo del flujo de cálculo.
+ */
 .informe-raiz {
-  display: contents;
+  position: absolute;
+  width: 210mm;
+  left: -9999px;
+  top: 0;
+  pointer-events: none;
 }

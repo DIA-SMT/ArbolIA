@@ -11,6 +11,16 @@ export interface DiagInfo {
   texturas: number
   programas: number
   fps: number
+  /**
+   * El fps MÁS BAJO de la última media docena de muestras.
+   *
+   * El promedio esconde exactamente lo que arruina una instalación: un tirón
+   * de medio segundo cada tanto. Con 60 de promedio y 22 de mínimo, en el LED
+   * se ve un salto y el promedio dice que todo está bien.
+   */
+  fpsMinimo: number
+  /** Hojas efectivamente dibujadas: es lo que más cuesta en esta escena. */
+  hojas: number
 }
 
 /**
@@ -25,12 +35,18 @@ export default function Diagnostics({ onSample }: { onSample: (d: DiagInfo) => v
   const { gl, scene, size, viewport } = useThree()
   const frames = useRef(0)
   const last = useRef(performance.now())
+  /** Ventana corta de muestras, para poder informar el mínimo. */
+  const historia = useRef<number[]>([])
 
   useFrame(() => {
     frames.current += 1
     const now = performance.now()
     const elapsed = now - last.current
     if (elapsed < 500) return
+
+    const fps = Math.round((frames.current / elapsed) * 1000)
+    historia.current.push(fps)
+    if (historia.current.length > 12) historia.current.shift()
 
     const info = gl.info
     onSample({
@@ -42,7 +58,9 @@ export default function Diagnostics({ onSample }: { onSample: (d: DiagInfo) => v
       triangulos: info.render.triangles,
       texturas: info.memory.textures,
       programas: info.programs?.length ?? 0,
-      fps: Math.round((frames.current / elapsed) * 1000),
+      fps,
+      fpsMinimo: Math.min(...historia.current),
+      hojas: contarHojas(scene),
     })
 
     frames.current = 0
@@ -50,6 +68,16 @@ export default function Diagnostics({ onSample }: { onSample: (d: DiagInfo) => v
   })
 
   return null
+}
+
+/** Instancias de hoja dibujadas ahora mismo, sumando ambiente y ciudadanas. */
+function contarHojas(scene: import('three').Object3D): number {
+  let n = 0
+  scene.traverse((o) => {
+    const m = o as unknown as { isInstancedMesh?: boolean; count?: number }
+    if (m.isInstancedMesh) n += m.count ?? 0
+  })
+  return n
 }
 
 function countObjects(scene: import('three').Object3D): number {
@@ -61,7 +89,19 @@ function countObjects(scene: import('three').Object3D): number {
 }
 
 /** Panel de lectura, fuera del canvas. */
-export function DiagnosticsHud({ data, fx }: { data: DiagInfo | null; fx: boolean }) {
+export function DiagnosticsHud({
+  data,
+  fx,
+  calidad,
+  calidadFijada,
+}: {
+  data: DiagInfo | null
+  fx: boolean
+  /** La calidad EFECTIVA. Puede no ser la de arranque: ver PerformanceGuard. */
+  calidad: 'alta' | 'media'
+  /** true si se fijó con ?calidad y el guardián está apagado. */
+  calidadFijada: boolean
+}) {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
@@ -77,7 +117,24 @@ export function DiagnosticsHud({ data, fx }: { data: DiagInfo | null; fx: boolea
   const rows: Array<[string, string]> = data
     ? [
         ['canvas', `${data.ancho} × ${data.alto} @ ${data.dpr.toFixed(2)}x`],
-        ['fps', `${data.fps}`],
+        ['fps', `${data.fps}  ·  mínimo ${data.fpsMinimo}`],
+        /*
+         * La calidad EFECTIVA, y si la bajó el guardián.
+         *
+         * Es el dato que faltaba para poder decidir en el stand. El guardián
+         * degrada solo cuando caen los cuadros, así que una pantalla que se ve
+         * peor de lo esperado puede ser simplemente que ya se defendió — y sin
+         * verlo escrito no hay forma de distinguir eso de un problema.
+         */
+        [
+          'calidad',
+          calidadFijada
+            ? `${calidad} (fijada con ?calidad)`
+            : calidad === 'media'
+              ? 'media — el guardián la bajó solo'
+              : 'alta (el guardián no intervino)',
+        ],
+        ['hojas dibujadas', data.hojas.toLocaleString('es-AR')],
         ['objetos en escena', `${data.objetos}`],
         ['llamadas de dibujo', `${data.llamadas}`],
         ['triángulos', data.triangulos.toLocaleString('es-AR')],
