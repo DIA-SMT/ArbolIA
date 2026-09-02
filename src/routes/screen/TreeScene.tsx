@@ -11,6 +11,7 @@ import Atmosphere from './Atmosphere'
 import CelebrationBurst from './CelebrationBurst'
 import FloatingLabels from './FloatingLabels'
 import Pajaro from './Pajaro'
+import Ardilla from './Ardilla'
 import Diagnostics, { type DiagInfo } from './Diagnostics'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
@@ -113,6 +114,7 @@ export default function TreeScene({
           __arbolia_pajaro.volar().
         */}
         <Pajaro />
+        <Ardilla />
 
         {/* La crítica hace el camino inverso: cae y alimenta las raíces. */}
         <FallingFruit idea={criticaCayendo} visible={labelsVisible} />

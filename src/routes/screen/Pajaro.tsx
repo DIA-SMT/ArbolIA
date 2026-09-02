@@ -38,8 +38,14 @@ const ESPERA_MAX = 38
 /** Lo que tarda en cruzar. */
 const CRUCE_S = 7.5
 
-/** Aleteos por segundo. */
-const ALETEO_HZ = 5.5
+/**
+ * Aleteos por segundo.
+ *
+ * Estaba en 5.5 y se veía nervioso: a esa frecuencia, sobre una pantalla
+ * quieta y contemplativa, el ojo lee agitación en vez de vuelo. Un ave
+ * grande planeando bate mucho más lento, y eso es lo que pide esta escena.
+ */
+const ALETEO_HZ = 2.8
 
 /** Blanco celeste: no es el color de ninguna de las ocho áreas. */
 const COLOR = '#bfe9ff'
@@ -268,7 +274,7 @@ export default function Pajaro() {
     materialEstela.opacity = 0.5 * opacidad
 
     // Aleteo. Las dos alas suben y bajan juntas.
-    const angulo = Math.sin(reloj.current * ALETEO_HZ * Math.PI * 2) * 0.62
+    const angulo = Math.sin(reloj.current * ALETEO_HZ * Math.PI * 2) * 0.52
     if (alaIzq.current) alaIzq.current.rotation.z = angulo
     if (alaDer.current) alaDer.current.rotation.z = -angulo
 
