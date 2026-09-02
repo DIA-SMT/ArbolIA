@@ -131,7 +131,30 @@ export default function TreeScene({
           */}
           <BloomDriver target={bloomRef} celebration={celebration} growth={growth} />
 
-          <EffectComposer multisampling={quality === 'alta' ? 2 : 0}>
+          {/*
+            SIN MSAA, y es una decisión medida.
+
+            Estaba en 2x para la calidad alta. Medido en la PC del stand —una
+            Intel UHD integrada moviendo 1920x1080— con el árbol al máximo:
+
+              alta + bloom + MSAA 2x    20,7 ms   ->  no entra en 60 Hz
+              alta + bloom, sin MSAA    14,1 ms   ->  entra
+              media + bloom             12,3 ms   ->  entra, con medio follaje
+
+            Un LED a 60 Hz da 16,7 ms por cuadro. Con 20,7 se pierde un vsync
+            de cada dos y la instalación corre a 30 fps: el MSAA solo se
+            llevaba 6,6 ms, un tercio del cuadro.
+
+            Apagarlo deja el árbol COMPLETO, con su resplandor, a 60 fps. Es
+            mejor resultado que dejar actuar al guardián, que para llegar a
+            60 baja a calidad media y cuesta la mitad del follaje.
+
+            La contra es que no queda antialias en ningún lado: el canvas ya
+            venía con antialias:false. En esta escena pesa poco, porque es
+            resplandor aditivo sobre fondo profundo y el bloom difumina los
+            bordes; lo que puede notarse son las ramas finas oscuras.
+          */}
+          <EffectComposer multisampling={0}>
             <Bloom
               ref={bloomRef}
               intensity={0.85}
