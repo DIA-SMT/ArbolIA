@@ -5,6 +5,7 @@ import { getLeafGeometry, getLeafTexture } from './leafAssets'
 import { getTreeModel } from './treeGeometry'
 import { leafQuaternion, placeAll, placeLeaf, type PlacedLeaf } from './leafPlacement'
 import { WIND_GLSL, windUniforms } from './windShader'
+import { type Tema } from './temaEscena'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
 /*
@@ -32,6 +33,42 @@ interface Props {
   growth: GrowthProfile
   /** En media se dibuja la mitad del follaje de ambiente. */
   quality: 'alta' | 'media'
+  /** Fondo sobre el que va la copa. Cambia el valor, nunca el tono. */
+  tema?: Tema
+}
+
+/**
+ * Techo de luminosidad de una hoja ciudadana sobre fondo claro.
+ *
+ * Las hojas de ambiente ya salen oscuras: su fórmula las multiplica por
+ * 0.52 y las hunde más hacia adentro del racimo, así que sobre papel se
+ * leen bien tal cual. Las ciudadanas no: llevan el color de área casi
+ * puro, y esos ocho hex están elegidos para brillar sobre negro. El rosa
+ * de Cultura (#f9a8d4) tiene luminosidad HSL 0.82 y el fondo claro
+ * (#f7fafd) 0.98: la hoja de una vecina, que es LO que la instalación
+ * tiene para mostrar, quedaba a dieciséis centésimas del fondo.
+ *
+ * El tono no se toca —es lo que dice de qué habla la idea— y la
+ * saturación sube apenas, para compensar que el mismo color a menor
+ * luminosidad se percibe más lavado.
+ */
+const TECHO_L_CLARO = 0.46
+
+/**
+ * Escribe en `destino` el color de `origen` adaptado al fondo.
+ *
+ * Va a un destino aparte y no muta el original a propósito: leaf.color es
+ * el color propio de la hoja de esa persona, calculado una vez desde su id
+ * y conservado entre recargas. Si el tinte del tema se le aplicara encima,
+ * volver a oscuro con Ctrl+L devolvería la copa apagada para siempre.
+ */
+function segunFondo(destino: THREE.Color, origen: THREE.Color, tema: Tema): THREE.Color {
+  destino.copy(origen)
+  if (tema === 'oscuro') return destino
+  const hsl = { h: 0, s: 0, l: 0 }
+  destino.getHSL(hsl)
+  if (hsl.l <= TECHO_L_CLARO) return destino
+  return destino.setHSL(hsl.h, Math.min(1, hsl.s * 1.1 + 0.05), TECHO_L_CLARO)
 }
 
 /**
@@ -48,7 +85,7 @@ interface Props {
  * Son mallas SEPARADAS, con geometría y material propios: la cantidad de
  * ambiente no puede borrar ni escalar una hoja ciudadana.
  */
-export default function Leaves({ ideas, growth, quality }: Props) {
+export default function Leaves({ ideas, growth, quality, tema = 'oscuro' }: Props) {
   const citizenRef = useRef<THREE.InstancedMesh>(null)
   const ambientRef = useRef<THREE.InstancedMesh>(null)
 
@@ -68,6 +105,8 @@ export default function Leaves({ ideas, growth, quality }: Props) {
   const idsRef = useRef<string[]>([])
   const sproutRef = useRef<Map<number, number>>(new Map())
   const clockRef = useRef(0)
+  /** Con qué tema se pintaron las hojas que ya están en la copa. */
+  const temaVisto = useRef<Tema>(tema)
 
   const material = useMemo(() => makeLeafMaterial(getLeafTexture()), [])
   // Follaje base: opaco. Miles de hojas translucidas superpuestas se leen
@@ -177,8 +216,21 @@ export default function Leaves({ ideas, growth, quality }: Props) {
     const previous = idsRef.current
     const nextIds = ideas.map((i) => i.id)
 
+    /*
+     * Un cambio de tema obliga a repintar la copa entera.
+     *
+     * Sin esto el efecto se saltea el trabajo: los ids son los mismos, así
+     * que da append puro de largo cero y sale por el return de abajo sin
+     * tocar un color. Las hojas ya plantadas se quedaban con el tinte del
+     * tema anterior y sólo las que llegaran después nacían con el nuevo:
+     * media copa de cada uno.
+     */
+    const cambioDeTema = temaVisto.current !== tema
+    temaVisto.current = tema
+
     // ¿Es un append puro? (el caso normal: llegó una idea nueva)
     const isAppend =
+      !cambioDeTema &&
       nextIds.length >= previous.length &&
       previous.every((id, index) => nextIds[index] === id)
 
@@ -194,7 +246,7 @@ export default function Leaves({ ideas, growth, quality }: Props) {
 
       leaves.forEach((leaf, i) => {
         if (i >= MAX_LEAVES) return
-        applyLeaf(mesh, flex, dummy, leaf, i, 1)
+        applyLeaf(mesh, flex, dummy, leaf, i, 1, tema)
       })
       mesh.count = Math.min(leaves.length, MAX_LEAVES)
       mesh.instanceMatrix.needsUpdate = true
@@ -222,7 +274,7 @@ export default function Leaves({ ideas, growth, quality }: Props) {
       placedRef.current[i] = leaf
 
       // Arranca en escala 0: el brote lo anima useFrame.
-      applyLeaf(mesh, flex, dummy, leaf, i, 0)
+      applyLeaf(mesh, flex, dummy, leaf, i, 0, tema)
       sproutRef.current.set(i, clockRef.current)
     }
 
@@ -231,7 +283,7 @@ export default function Leaves({ ideas, growth, quality }: Props) {
     flex.needsUpdate = true
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
     idsRef.current = nextIds
-  }, [ideas, citizenGeometry])
+  }, [ideas, citizenGeometry, tema])
 
   // ---- Animación de brote + viento -----------------------------------
   useFrame((_, delta) => {
@@ -257,14 +309,14 @@ export default function Leaves({ ideas, growth, quality }: Props) {
       }
 
       if (elapsed >= SPROUT_MS) {
-        applyLeaf(mesh, flex, dummy, leaf, index, 1)
+        applyLeaf(mesh, flex, dummy, leaf, index, 1, tema)
         sprouts.delete(index)
         dirty = true
         continue
       }
 
       const t = elapsed / SPROUT_MS
-      applyLeaf(mesh, flex, dummy, leaf, index, sproutEase(t))
+      applyLeaf(mesh, flex, dummy, leaf, index, sproutEase(t), tema)
       dirty = true
     }
 
@@ -306,6 +358,9 @@ function sproutEase(t: number): number {
   return 1 + (c + 1) * p * p * p + c * p * p
 }
 
+/** Scratch del tinte por tema: applyLeaf corre miles de veces por brote. */
+const TINTE = new THREE.Color()
+
 function applyLeaf(
   mesh: THREE.InstancedMesh,
   flex: THREE.InstancedBufferAttribute,
@@ -313,13 +368,14 @@ function applyLeaf(
   leaf: PlacedLeaf,
   index: number,
   scaleFactor: number,
+  tema: Tema,
 ) {
   dummy.position.copy(leaf.position)
   dummy.quaternion.copy(leaf.quaternion)
   dummy.scale.setScalar(leaf.scale * CITIZEN_SCALE * scaleFactor)
   dummy.updateMatrix()
   mesh.setMatrixAt(index, dummy.matrix)
-  mesh.setColorAt(index, leaf.color)
+  mesh.setColorAt(index, segunFondo(TINTE, leaf.color, tema))
   flex.setX(index, leaf.slot.flex)
 }
 

@@ -48,10 +48,16 @@ export default function ScreenOverlay({
     <div className="overlay">
       {/* ---------- Barra institucional ---------- */}
       <header className="overlay__top">
-        <img
+        {/*
+          El logo va como caja enmascarada y no como <img>: es monocromo y
+          tiene que salir blanco sobre el LED y en tinta sobre papel, y del
+          logo completo sólo existe el archivo blanco. El detalle está en
+          .overlay__logo. El role/aria-label sostienen lo que daba el alt.
+        */}
+        <span
           className="overlay__logo"
-          src="/marca/logo-smt-blanco.png"
-          alt="Municipalidad de San Miguel de Tucumán"
+          role="img"
+          aria-label="Municipalidad de San Miguel de Tucumán"
         />
 
         <div className="overlay__event">

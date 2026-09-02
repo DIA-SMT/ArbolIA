@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getGlowTexture } from './leafAssets'
 import { getTreeModel } from './treeGeometry'
+import { NUCLEO_TEMA, aplicarTemaColor, blendingDe, type Tema } from './temaEscena'
 
 const PARTICLES = 900
 const DURATION_MS = 4200
@@ -10,6 +11,8 @@ const DURATION_MS = 4200
 interface Props {
   /** Hito alcanzado; cambiar el valor dispara una nueva celebración. */
   trigger: number | null
+  /** Fondo sobre el que estalla. */
+  tema?: Tema
 }
 
 /**
@@ -17,7 +20,7 @@ interface Props {
  * —no de un punto— para que se lea como que florece el árbol entero y no
  * como un fuego artificial pegado encima.
  */
-export default function CelebrationBurst({ trigger }: Props) {
+export default function CelebrationBurst({ trigger, tema = 'oscuro' }: Props) {
   const pointsRef = useRef<THREE.Points>(null)
   const glow = useMemo(() => getGlowTexture(), [])
   const model = useMemo(() => getTreeModel(), [])
@@ -44,11 +47,11 @@ export default function CelebrationBurst({ trigger }: Props) {
         sizeAttenuation: true,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: blendingDe(tema),
         toneMapped: false,
         vertexColors: true,
       }),
-    [glow],
+    [glow, tema],
   )
 
   useEffect(() => {
@@ -76,13 +79,19 @@ export default function CelebrationBurst({ trigger }: Props) {
       velocities[i * 3 + 1] = Math.abs(Math.cos(phi)) * speed * 0.9 + 0.4
       velocities[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * speed
 
-      color.set(branch.color).lerp(new THREE.Color('#ffffff'), Math.random() * 0.5)
+      /*
+       * Cada chispa tira hacia el extremo del rango, y ese extremo
+       * depende del fondo: blanco sobre negro, tinta institucional sobre
+       * papel. Con el blanco fijo, en claro la mitad de las novecientas
+       * partículas nacían siendo exactamente el fondo.
+       */
+      aplicarTemaColor(color, branch.color, tema).lerp(NUCLEO_TEMA[tema], Math.random() * 0.5)
       colorAttr.setXYZ(i, color.r, color.g, color.b)
     }
 
     colorAttr.needsUpdate = true
     elapsedRef.current = 0
-  }, [trigger, geometry, model])
+  }, [trigger, geometry, model, tema])
 
   // Sin dispose() manual: rompería el montaje doble de StrictMode.
   // Ver la nota en TreeStructure.tsx.

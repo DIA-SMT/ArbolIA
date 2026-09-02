@@ -85,6 +85,14 @@ const fragmentShader = /* glsl */ `
   uniform float uDirection;
   uniform float uRimPower;
   uniform float uReveal;
+  /**
+   * 0 = fondo oscuro, 1 = fondo claro.
+   *
+   * Dos de las tres capas de este shader están escritas para despegar la
+   * madera de un fondo negro SUMANDO luz, y sobre papel eso hace lo
+   * contrario de lo que se quiere. Este uniforme les cambia el signo.
+   */
+  uniform float uClaro;
 
   varying vec2  vUv;
   varying vec3  vNormalW;
@@ -115,12 +123,35 @@ const fragmentShader = /* glsl */ `
     vec3 lit = uBark * (0.34 + key * 0.95);
     lit += uBark * fill * 0.4;
 
-    // Las ramitas finas son más claras que la madera gruesa.
-    lit *= mix(1.55, 0.92, vThickness);
+    /*
+     * Realce por grosor, y su signo depende del fondo.
+     *
+     * Sobre negro las ramitas finas van MÁS CLARAS que la madera gruesa:
+     * así se leen los brotes nuevos y así la copa vacía se ve como una
+     * trama en vez de una masa.
+     *
+     * Sobre papel ese mismo x1.55 empuja justo la parte más delgada del
+     * árbol HACIA el blanco del fondo, que es además donde menos píxeles
+     * hay para defenderse: una ramita de último nivel mide un par de
+     * píxeles de ancho. En claro el realce se invierte y lo fino va más
+     * OSCURO, que es como se ve una rama fina a contraluz.
+     *
+     * Sin medir todavía en la pantalla del stand: falta la pasada en el
+     * LED con el tema claro puesto.
+     */
+    lit *= mix(mix(1.55, 0.92, vThickness), mix(0.74, 1.0, vThickness), uClaro);
 
     // ---- 2. Borde ----
     float rim = pow(1.0 - max(dot(normal, normalize(vViewDir)), 0.0), uRimPower);
-    lit += uEnergy * rim * 0.5 * uIntensity;
+    /*
+     * El fresnel despega la silueta del fondo. Sobre negro eso se hace
+     * sumando luz en el canto; sobre blanco, sumar luz en el canto es
+     * fundir la silueta CON el fondo. En claro el mismo borde oscurece:
+     * el resultado es una madera con contorno propio, que es lo que hace
+     * que el árbol se lea como dibujo a tinta y no como una acuarela.
+     */
+    lit += uEnergy * rim * 0.5 * uIntensity * (1.0 - uClaro);
+    lit = mix(lit, lit * 0.42, rim * 0.8 * uClaro);
 
     // ---- 3. Savia ----
     float flow  = fract(vUv.x * uPulseCount - uTime * uSpeed * uDirection);
@@ -161,6 +192,8 @@ export interface EnergyMaterialOptions {
   doubleSided?: boolean
   /** Amplitud del viento. 0 para lo que no debe moverse (raíces). */
   windStrength?: number
+  /** Fondo sobre el que va la madera. Cambia el signo de dos capas. */
+  tema?: 'claro' | 'oscuro'
 }
 
 export function createEnergyMaterial(options: EnergyMaterialOptions): THREE.ShaderMaterial {
@@ -179,6 +212,7 @@ export function createEnergyMaterial(options: EnergyMaterialOptions): THREE.Shad
       // Un pelo por encima de 1: el interpolador puede devolver 1.0000001 en
       // el ultimo anillo de vertices y el discard comeria esa fila de pixeles.
       uReveal: { value: options.reveal ?? 1.001 },
+      uClaro: { value: options.tema === 'claro' ? 1 : 0 },
       ...windUniforms(options.windStrength ?? 0.03),
     },
     /*

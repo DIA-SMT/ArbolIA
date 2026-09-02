@@ -338,6 +338,30 @@
   cursor: not-allowed;
 }
 
+/*
+ * El botón deshabilitado, sobre papel.
+ *
+ * Bajar la opacidad del botón entero funciona sobre fondo oscuro: el verde
+ * se apaga y la etiqueta oscura sigue apoyada sobre algo. Sobre blanco
+ * hace lo contrario, porque la opacidad arrastra TAMBIÉN al texto: el
+ * degradado verde se lava hasta casi el fondo y "ENVIAR", que es tinta
+ * #04121a, queda al 34 % sobre ese verde lavado. En pantalla se leía
+ * apenas la sombra de la palabra.
+ *
+ * Y no es un botón cualquiera: es el único de la pantalla del vecino, y
+ * arranca deshabilitado hasta que elige su edad. O sea que lo primero que
+ * ve la persona era un botón sin texto legible.
+ *
+ * Acá el botón se apaga con color, no con opacidad: superficie gris de
+ * papel y etiqueta en gris medio. Se lee clarísimo que no está activo, y
+ * se lee.
+ */
+:root[data-tema='claro'] .send:disabled {
+  opacity: 1;
+  background: #e6ecf3;
+  color: rgba(51, 65, 79, 0.62);
+}
+
 .send__spin {
   width: 1em;
   height: 1em;

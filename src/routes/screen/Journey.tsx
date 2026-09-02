@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { buildJourneyPath, getBranchFor, getLeafSlot, getTreeModel } from './treeGeometry'
 import { getGlowTexture, getLeafGeometry, getLeafTexture } from './leafAssets'
 import { leafQuaternion } from './leafPlacement'
+import { NUCLEO_TEMA, aplicarTemaColor, blendingDe, type Tema } from './temaEscena'
 import type { Idea } from '../../lib/types'
 
 /** Viaje de la partícula: raíces → tronco → rama → posición de la hoja. */
@@ -17,9 +18,11 @@ interface Props {
   idea: Idea | null
   /** Cuántas hojas de esta categoría ya están plantadas. */
   indexInCategory: number
+  /** Fondo sobre el que viaja la partícula. */
+  tema?: Tema
 }
 
-export default function Journey({ idea, indexInCategory }: Props) {
+export default function Journey({ idea, indexInCategory, tema = 'oscuro' }: Props) {
   const model = useMemo(() => getTreeModel(), [])
   const glow = useMemo(() => getGlowTexture(), [])
   const leafGeo = useMemo(() => getLeafGeometry(), [])
@@ -68,6 +71,20 @@ export default function Journey({ idea, indexInCategory }: Props) {
     return geo
   }, [])
 
+  /*
+   * ESTE es el momento por el que existe la instalación: la idea de una
+   * vecina subiendo desde las raíces hasta brotar en hoja, mientras ella
+   * está parada mirando la pantalla.
+   *
+   * En tema claro no se veía. No es una manera de decir que se veía poco:
+   * los cuatro materiales eran aditivos, y sumar luz sobre un fondo de
+   * luminancia 0.978 no dibuja nada. La estela, la cabeza y el estallido de
+   * llegada no existían, y lo único que quedaba era la hoja apareciendo de
+   * la nada, sin el viaje que le da sentido.
+   *
+   * Con mezcla normal y el color de área en versión tinta, el mismo gesto
+   * se lee sobre papel: una chispa oscura que sube por el tronco.
+   */
   const trailMaterial = useMemo(
     () =>
       new THREE.PointsMaterial({
@@ -76,11 +93,11 @@ export default function Journey({ idea, indexInCategory }: Props) {
         sizeAttenuation: true,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: blendingDe(tema),
         toneMapped: false,
         opacity: 0.9,
       }),
-    [glow],
+    [glow, tema],
   )
 
   const burstMaterial = useMemo(
@@ -91,10 +108,10 @@ export default function Journey({ idea, indexInCategory }: Props) {
         sizeAttenuation: true,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: blendingDe(tema),
         toneMapped: false,
       }),
-    [glow],
+    [glow, tema],
   )
 
   const headMaterial = useMemo(
@@ -103,10 +120,10 @@ export default function Journey({ idea, indexInCategory }: Props) {
         map: glow,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: blendingDe(tema),
         toneMapped: false,
       }),
-    [glow],
+    [glow, tema],
   )
 
   const leafMaterial = useMemo(
@@ -126,10 +143,17 @@ export default function Journey({ idea, indexInCategory }: Props) {
     elapsedRef.current = 0
 
     if (journey) {
-      trailMaterial.color.copy(journey.color)
-      burstMaterial.color.copy(journey.color)
-      headMaterial.color.copy(journey.color).lerp(new THREE.Color('#ffffff'), 0.45)
-      leafMaterial.color.copy(journey.color)
+      aplicarTemaColor(trailMaterial.color, journey.color, tema)
+      aplicarTemaColor(burstMaterial.color, journey.color, tema)
+      /*
+       * La cabeza va incandescente: el color del área tirado hacia el
+       * extremo del rango. Sobre negro ese extremo es el blanco; sobre
+       * papel, el blanco ES el fondo, así que ahí el extremo del gesto es
+       * la tinta institucional y la cabeza se vuelve la parte más OSCURA
+       * de la chispa. Mismo gesto, signo invertido.
+       */
+      aplicarTemaColor(headMaterial.color, journey.color, tema).lerp(NUCLEO_TEMA[tema], 0.45)
+      aplicarTemaColor(leafMaterial.color, journey.color, tema)
 
       // Direcciones fijas del estallido de llegada.
       const dirs = burstDirsRef.current
@@ -142,7 +166,7 @@ export default function Journey({ idea, indexInCategory }: Props) {
         dirs[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * speed
       }
     }
-  }, [journey, trailMaterial, burstMaterial, headMaterial, leafMaterial])
+  }, [journey, tema, trailMaterial, burstMaterial, headMaterial, leafMaterial])
 
   // Sin dispose() manual: rompería el montaje doble de StrictMode.
   // Ver la nota en TreeStructure.tsx.
@@ -229,7 +253,8 @@ export default function Journey({ idea, indexInCategory }: Props) {
         leaf.quaternion.copy(journey.quaternion)
         leaf.scale.setScalar(journey.slot.scale * sproutEase(t))
         // Nace incandescente y se asienta en el color de su categoría.
-        leafMaterial.color.copy(journey.color).lerp(new THREE.Color('#ffffff'), 0.75 * (1 - t))
+        // El extremo incandescente depende del fondo: ver el reinicio.
+        aplicarTemaColor(leafMaterial.color, journey.color, tema).lerp(NUCLEO_TEMA[tema], 0.75 * (1 - t))
       }
     }
   })

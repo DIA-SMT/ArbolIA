@@ -12,6 +12,7 @@ import {
   SUELO,
 } from './fallPath'
 import { getGlowTexture } from './leafAssets'
+import { aplicarTemaColor, blendingDe, type Tema } from './temaEscena'
 import type { Idea } from '../../lib/types'
 
 /**
@@ -47,9 +48,18 @@ interface Props {
   idea: Idea | null
   /** Ctrl+H del operador: oculta el texto sin frenar la caída. */
   visible?: boolean
+  /**
+   * Fondo sobre el que cae.
+   *
+   * Los cinco materiales de esta caída eran aditivos, así que en tema
+   * claro la crítica no se veía caer: quedaba sólo el texto de drei
+   * moviéndose solo por la pantalla. Ver temaEscena.ts.
+   */
+  tema?: Tema
 }
 
-export default function FallingFruit({ idea, visible = true }: Props) {
+export default function FallingFruit({ idea, visible = true, tema = 'oscuro' }: Props) {
+  const mezcla = blendingDe(tema)
   const model = useMemo(() => getTreeModel(), [])
   const glow = useMemo(() => getGlowTexture(), [])
 
@@ -145,8 +155,8 @@ export default function FallingFruit({ idea, visible = true }: Props) {
     const t = transcurridoRef.current
 
     grupo.visible = true
-    fruto.material.color.copy(caida.color)
-    halo.material.color.copy(caida.color)
+    aplicarTemaColor(fruto.material.color, caida.color, tema)
+    aplicarTemaColor(halo.material.color, caida.color, tema)
 
     // ---- 1. Se desprende ------------------------------------------------
     // Madura en la rama y tiembla antes de soltarse. Sin esto la caída
@@ -216,7 +226,7 @@ export default function FallingFruit({ idea, visible = true }: Props) {
     const abre = 1 - (1 - p) * (1 - p)
     anillo.scale.setScalar(0.25 + abre * 2.4)
     const matAnillo = anillo.material as THREE.MeshBasicMaterial
-    matAnillo.color.copy(caida.color)
+    aplicarTemaColor(matAnillo.color, caida.color, tema)
     matAnillo.opacity = 0.5 * (1 - p)
 
     // Salpicadura: la energía se reparte por la base.
@@ -235,7 +245,7 @@ export default function FallingFruit({ idea, visible = true }: Props) {
       }
       pos.needsUpdate = true
       ;(salpicadura.material as THREE.PointsMaterial).opacity = 0.85 * (1 - p)
-      ;(salpicadura.material as THREE.PointsMaterial).color.copy(caida.color)
+      aplicarTemaColor((salpicadura.material as THREE.PointsMaterial).color, caida.color, tema)
     }
 
     const estela = estelaRef.current
@@ -266,7 +276,7 @@ export default function FallingFruit({ idea, visible = true }: Props) {
             map={glow}
             transparent
             depthWrite={false}
-            blending={THREE.AdditiveBlending}
+            blending={mezcla}
             toneMapped={false}
             opacity={0}
           />
@@ -301,7 +311,7 @@ export default function FallingFruit({ idea, visible = true }: Props) {
             map={glow}
             transparent
             depthWrite={false}
-            blending={THREE.AdditiveBlending}
+            blending={mezcla}
             // Sin esto el mapeo de tonos apaga el resplandor y el fruto se
             // pierde contra la copa. Journey usa el mismo ajuste.
             toneMapped={false}
@@ -319,7 +329,7 @@ export default function FallingFruit({ idea, visible = true }: Props) {
           transparent
           opacity={0.7}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
+          blending={mezcla}
           toneMapped={false}
         />
       </points>
@@ -338,7 +348,7 @@ export default function FallingFruit({ idea, visible = true }: Props) {
           opacity={0}
           side={THREE.DoubleSide}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
+          blending={mezcla}
           toneMapped={false}
         />
       </mesh>
@@ -352,7 +362,7 @@ export default function FallingFruit({ idea, visible = true }: Props) {
           transparent
           opacity={0}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
+          blending={mezcla}
           toneMapped={false}
         />
       </points>

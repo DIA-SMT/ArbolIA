@@ -38,6 +38,29 @@ export function aplicarTema(tema: Tema): void {
 }
 
 /**
+ * Ruta de la pantalla del stand: la única que arranca en oscuro por
+ * decisión propia en vez de seguir al sistema. Ver useTema() abajo.
+ */
+const RUTA_PANTALLA = '/'
+
+/**
+ * Qué tema corresponde ANTES de que monte ninguna ruta.
+ *
+ * Existe para el arranque. Las rutas se cargan con lazy() y mientras tanto
+ * se ve <Boot />, que se dibuja antes de que ningún useTema haya corrido:
+ * hasta ese momento no había data-tema en el html, así que la pantalla de
+ * carga salía siempre oscura y saltaba a blanco al montar la app. En el
+ * celular del vecino, donde el bundle es chico y la carga dura poco, ese
+ * flash negro era lo primero que veía.
+ *
+ * Lo llama main.tsx antes de render(). La regla es la misma que aplica
+ * useTema después, así que el valor no cambia al montar la ruta.
+ */
+export function temaInicial(ruta: string = window.location.pathname): Tema {
+  return guardado() ?? (ruta === RUTA_PANTALLA ? 'oscuro' : delSistema())
+}
+
+/**
  * @param porDefecto Qué usar cuando nadie eligió todavía.
  *
  * La pantalla del stand pasa 'oscuro' a propósito, en vez de seguir al

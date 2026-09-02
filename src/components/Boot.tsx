@@ -20,8 +20,18 @@ export default function Boot() {
           place-content: center;
           justify-items: center;
           gap: 2.2rem;
+          /*
+           * El fondo sigue al tema.
+           *
+           * Estaba clavado en el degradado oscuro, así que entrar a
+           * cualquiera de las tres rutas en tema claro empezaba con un
+           * cuadro negro a pantalla completa y saltaba a blanco al montar
+           * la app. En el celular del vecino, que es donde más se nota
+           * porque el bundle es chico y la carga dura poco, ese flash era
+           * lo primero que veía.
+           */
           background:
-            radial-gradient(circle at 50% 55%, #0b1727 0%, #050a12 62%);
+            radial-gradient(circle at 50% 55%, var(--boot-alto) 0%, var(--boot-bajo) 62%);
         }
         .boot__mark {
           position: relative;
@@ -34,13 +44,13 @@ export default function Boot() {
           position: absolute;
           inset: 0;
           border-radius: 50%;
-          border: 1px solid rgba(60, 180, 240, 0.35);
+          border: 1px solid var(--boot-anillo);
           border-top-color: rgba(37, 211, 102, 0.9);
           animation: boot-spin 1.4s linear infinite;
         }
         .boot__ring--slow {
           inset: 14px;
-          border-color: rgba(60, 180, 240, 0.16);
+          border-color: var(--boot-anillo-tenue);
           border-bottom-color: rgba(60, 180, 240, 0.7);
           animation-duration: 2.6s;
           animation-direction: reverse;
@@ -60,7 +70,27 @@ export default function Boot() {
           font-weight: 500;
           letter-spacing: 0.42em;
           text-transform: uppercase;
-          color: rgba(190, 215, 235, 0.5);
+          color: var(--boot-texto);
+        }
+        /*
+         * Los valores del tema oscuro son EXACTAMENTE los que había. En
+         * claro se invierten los roles: el degradado va de blanco al gris
+         * azulado del fondo profundo, y los anillos pasan de ser luz sobre
+         * negro a ser trazo sobre papel.
+         */
+        .boot {
+          --boot-alto: #0b1727;
+          --boot-bajo: #050a12;
+          --boot-texto: rgba(190, 215, 235, 0.5);
+          --boot-anillo: rgba(60, 180, 240, 0.35);
+          --boot-anillo-tenue: rgba(60, 180, 240, 0.16);
+        }
+        :root[data-tema='claro'] .boot {
+          --boot-alto: #ffffff;
+          --boot-bajo: #eef4fa;
+          --boot-texto: rgba(51, 65, 79, 0.75);
+          --boot-anillo: rgba(18, 111, 245, 0.28);
+          --boot-anillo-tenue: rgba(18, 111, 245, 0.12);
         }
         @keyframes boot-spin {
           to { transform: rotate(360deg); }

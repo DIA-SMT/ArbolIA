@@ -93,12 +93,35 @@
   opacity: 0.75;
 }
 
-/* Logo institucional, en su versión blanca para fondo oscuro. */
+/*
+ * Logo institucional, monocromo, en el valor que le toca a cada fondo.
+ *
+ * El PNG entra como MÁSCARA y el color lo pone la caja. Era un <img> con
+ * la versión blanca del logo, sin condición de tema, y en claro la barra
+ * institucional quedaba literalmente vacía: blanco sobre blanco. Y no
+ * alcanzaba con cambiar de archivo, porque el único que existe del logo
+ * COMPLETO es el blanco —el isotipo de logo-muni-iso.png no trae el
+ * "CIUDAD SMT".
+ *
+ * Enmascarado, el dibujo es el mismo, con la misma silueta y las mismas
+ * proporciones, y sale blanco sobre el LED y en tinta institucional
+ * #10233d sobre papel: la variante monocroma en positivo, que es lo que
+ * define cualquier manual de marca. No es un filtro de inversión, que
+ * daría un negro plano y bordes sucios.
+ *
+ * PENDIENTE DE MARCA: si comunicación pasa el archivo oficial en color
+ * para fondo claro, esto vuelve a ser un <img> con dos fuentes.
+ */
 .overlay__logo {
   height: clamp(30px, 3.4vh, 58px);
-  width: auto;
-  object-fit: contain;
+  /* Enmascarado no hay imagen que gobierne la caja: el alto manda y el
+     ancho sale de la proporción real del archivo (507x206). */
+  aspect-ratio: 507 / 206;
   flex: none;
+  display: block;
+  background-color: var(--text-hi);
+  -webkit-mask: url('/marca/logo-smt-blanco.png') center / contain no-repeat;
+  mask: url('/marca/logo-smt-blanco.png') center / contain no-repeat;
 }
 
 .overlay__event {
@@ -1154,6 +1177,25 @@
   /* El verde de marca es un acento para fondo profundo; sobre blanco el
      que corresponde es el verde de papel del manual. */
   color: var(--texto-hero);
+}
+
+/*
+ * La chapita de estado, que en claro era blanco sobre blanco.
+ *
+ * Su borde sale de --line-soft, que en claro es #e3e8ef: una línea de
+ * papelería, pensada para separar bloques DENTRO de una hoja. Acá el
+ * elemento no está dentro de nada, está flotando sobre el lienzo 3D casi
+ * blanco, y con ese borde la pastilla no tenía silueta: se leía sólo el
+ * texto y el puntito, como si estuvieran sueltos en la pantalla.
+ *
+ * Importa más de lo que parece: es el único aviso de que la pantalla está
+ * en demostración o reconectando. Si el operador no lo ve, no sabe que el
+ * árbol dejó de mostrar ideas reales.
+ */
+:root[data-tema='claro'] .status {
+  border-color: var(--line-mid);
+  box-shadow: var(--sombra-tarjeta);
+  color: var(--text-mid);
 }
 
 /* -------------------------------------------------- QR en la columna

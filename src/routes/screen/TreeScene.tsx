@@ -93,7 +93,7 @@ export default function TreeScene({
 
       <CameraRig celebration={celebration} escalaRef={escalaRef} />
 
-      <Atmosphere growth={growth} escalaRef={escalaRef} />
+      <Atmosphere growth={growth} escalaRef={escalaRef} tema={tema} />
 
       {/*
         Todo el árbol vive dentro del mismo grupo escalado: estructura,
@@ -105,9 +105,10 @@ export default function TreeScene({
           growth={growth}
           highlightSlug={activeIdea?.category ?? null}
           pulsoRaices={pulsoRaices}
+          tema={tema}
         />
-        <Leaves ideas={propuestas} growth={growth} quality={quality} />
-        <Journey idea={activeIdea} indexInCategory={indexInCategory} />
+        <Leaves ideas={propuestas} growth={growth} quality={quality} tema={tema} />
+        <Journey idea={activeIdea} indexInCategory={indexInCategory} tema={tema} />
 
         {/*
           PROTOTIPO (rama animales): un pájaro de luz que cruza cada tanto.
@@ -121,7 +122,7 @@ export default function TreeScene({
         <Sol tema={tema} />
 
         {/* La crítica hace el camino inverso: cae y alimenta las raíces. */}
-        <FallingFruit idea={criticaCayendo} visible={labelsVisible} />
+        <FallingFruit idea={criticaCayendo} visible={labelsVisible} tema={tema} />
         {/*
           Sólo las propuestas cuelgan de la copa.
 
@@ -131,12 +132,37 @@ export default function TreeScene({
           reclamo no vive en las ramas, alimenta la base.
         */}
         <FloatingLabels ideas={propuestas} visible={labelsVisible} />
-        <CelebrationBurst trigger={celebration} />
+        <CelebrationBurst trigger={celebration} tema={tema} />
       </GrowthRig>
 
       {onDiagnostics && <Diagnostics onSample={onDiagnostics} />}
 
-      {postprocessing && (
+      {/*
+        EL POSTPROCESADO NO ES EL MISMO EN LOS DOS TEMAS, y no es una
+        preferencia estética: en claro el de abajo destruía la imagen.
+
+        El bloom toma todo lo que supere uLuminanceThreshold = 0.16. El
+        fondo del tema claro es #f7fafd, luminancia 0.978: el fondo ENTERO
+        pasa el umbral, así que el efecto difuminaba el fondo por encima del
+        árbol. Esa era la neblina lechosa que se comía la copa, las
+        etiquetas y las ramas finas. No hay umbral que lo arregle —tendría
+        que estar por encima de 0.978 y ahí no atrapa nada— porque el bloom
+        es, por definición, luz que desborda sobre lo oscuro. Sobre papel no
+        hay nada que desborde.
+
+        La viñeta se queda en los dos, pero muy bajada en claro: a 0.62
+        sobre blanco no se lee como profundidad, se lee como suciedad en las
+        esquinas.
+
+        Comprobado con ?fx=off, que ya existía para aislar exactamente esto.
+      */}
+      {postprocessing && tema === 'claro' && (
+        <EffectComposer multisampling={0}>
+          <Vignette eskil={false} offset={0.42} darkness={0.22} blendFunction={BlendFunction.NORMAL} />
+        </EffectComposer>
+      )}
+
+      {postprocessing && tema === 'oscuro' && (
         <>
           {/*
             El driver del bloom va FUERA del composer. EffectComposer arma su

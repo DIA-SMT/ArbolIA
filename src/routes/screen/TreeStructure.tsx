@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { createEnergyMaterial } from './energyMaterial'
@@ -12,13 +12,39 @@ import {
   trunkRadius,
 } from './tubeBuilder'
 import { getTreeModel } from './treeGeometry'
+import type { Tema } from './temaEscena'
 import type { GrowthProfile } from '../../lib/types'
 
 /** Cuánto dura el resplandor de las raíces tras una crítica, en segundos. */
 const PULSO_SEG = 2.8
 
+/**
+ * La corteza, en sus dos soportes.
+ *
+ * Los valores de `oscuro` son EXACTAMENTE los que había: el modo oscuro no
+ * cambia un píxel, y los motivos de cada uno están en los comentarios de
+ * abajo, donde se decidieron.
+ *
+ * Los de `claro` no son "los mismos más oscuros": son el mismo rol de
+ * valor invertido, igual que hace la paleta institucional al pasar de LED
+ * a papel. En oscuro la corteza tiene que ser lo bastante clara para no
+ * leerse como una silueta recortada contra el fondo; en claro tiene que
+ * ser lo bastante oscura para no leerse como una mancha lavada sobre el
+ * papel. El TONO azulado se mantiene en los dos: es lo que hace que la
+ * madera pertenezca a la misma familia que el resto de la marca.
+ *
+ * Los colores de energía —celeste del tronco, verde de las raíces, el
+ * color de cada área— NO se tocan: son identidad y significan algo.
+ */
+const CORTEZA = {
+  oscuro: { tronco: '#26485f', raices: '#0e1a24', ramas: '#1e3a4d' },
+  claro: { tronco: '#1c3446', raices: '#1b2c3a', ramas: '#203a4d' },
+} as const
+
 interface Props {
   growth: GrowthProfile
+  /** Fondo sobre el que va el árbol. Cambia la corteza, no la energía. */
+  tema?: Tema
   /** Categoría que está recibiendo una idea ahora mismo: su rama se enciende. */
   highlightSlug: string | null
   /**
@@ -39,8 +65,14 @@ interface Props {
  * total. Se fusionan en 10 mallas (tronco + raíces + 8 áreas) para no
  * gastar doscientas llamadas de dibujo en una PC de stand.
  */
-export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Props) {
+export default function TreeStructure({
+  growth,
+  highlightSlug,
+  pulsoRaices,
+  tema = 'oscuro',
+}: Props) {
   const model = useMemo(() => getTreeModel(), [])
+  const corteza = CORTEZA[tema]
 
   const trunkGeo = useMemo(
     () => createTaperedTube(model.trunk, trunkRadius, 40, 14),
@@ -106,23 +138,27 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
          * El shader además lo oscurece por grosor —a propósito, las ramitas
          * finas van más claras— así que el tronco es la parte que más
          * necesita el valor de partida alto.
+         *
+         * En claro el razonamiento es el mismo con el signo cambiado: ver
+         * la tabla CORTEZA arriba.
          */
-        barkColor: '#26485f',
+        barkColor: corteza.tronco,
         speed: 0.1,
         pulseCount: 1.7,
         direction: 1,
         rimPower: 3.6,
         // El tronco cede muy poco: es la parte gruesa del árbol.
         windStrength: 0,
+        tema,
       }),
-    [],
+    [corteza, tema],
   )
 
   const rootMaterial = useMemo(
     () =>
       createEnergyMaterial({
         energyColor: '#25d366',
-        barkColor: '#0e1a24',
+        barkColor: corteza.raices,
         speed: 0.09,
         pulseCount: 1.4,
         // Las raíces empujan energía HACIA el tronco: la comunidad alimenta.
@@ -133,8 +169,9 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
         reveal: 0.4,
         // Bajo tierra no hay viento.
         windStrength: 0,
+        tema,
       }),
-    [],
+    [corteza, tema],
   )
 
   const branchMaterials = useMemo(
@@ -154,20 +191,37 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
            * finas siguen siendo las más claras y la copa vacía se lee como
            * una trama y no como una masa.
            */
-          barkColor: '#1e3a4d',
+          barkColor: corteza.ramas,
           speed: 0.15,
           pulseCount: 1.2,
           direction: 1,
           rimPower: 3.4,
           // Las ramas son las que se mecen de verdad.
           windStrength: 0.1,
+          tema,
         }),
       ),
-    [model],
+    [model, corteza, tema],
   )
 
   const allMaterials = useRef<THREE.ShaderMaterial[]>([])
   allMaterials.current = [trunkMaterial, rootMaterial, ...branchMaterials]
+
+  /*
+   * Cuánto de las raíces está revelado ahora mismo.
+   *
+   * Existe por el cambio de tema. Los materiales se rehacen cuando cambia,
+   * y uno recién creado arranca en reveal 0.4 mientras el bucle lo lleva de
+   * vuelta a growth.rootReach a 0.015 por cuadro: con la feria avanzada eso
+   * son varios segundos de raíces encogiéndose y volviendo a crecer, que se
+   * lee como un error de render justo cuando el operador toca Ctrl+L
+   * delante del público. Guardado acá, el material nuevo empieza donde
+   * estaba el viejo y el cambio de fondo no toca el crecimiento.
+   */
+  const revelado = useRef(0.4)
+  useLayoutEffect(() => {
+    rootMaterial.uniforms.uReveal.value = revelado.current
+  }, [rootMaterial])
 
   /*
    * Estado del pulso de las raíces.
@@ -216,11 +270,12 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
 
     // Las raices se extienden con la participacion. Interpolado y lento:
     // tienen que verse avanzar, no aparecer de un salto al cruzar un umbral.
-    rootMaterial.uniforms.uReveal.value = THREE.MathUtils.lerp(
+    revelado.current = THREE.MathUtils.lerp(
       rootMaterial.uniforms.uReveal.value,
       growth.rootReach,
       0.015,
     )
+    rootMaterial.uniforms.uReveal.value = revelado.current
 
     // La rama de la categoría entrante se enciende mientras dura el viaje.
     model.branches.forEach((branch, i) => {
