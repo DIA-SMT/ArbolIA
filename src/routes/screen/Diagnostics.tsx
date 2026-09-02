@@ -38,12 +38,32 @@ export default function Diagnostics({ onSample }: { onSample: (d: DiagInfo) => v
   /** Ventana corta de muestras, para poder informar el mínimo. */
   const historia = useRef<number[]>([])
 
+  /*
+   * three.js resetea gl.info al EMPEZAR cada render, y con postprocesado hay
+   * varios renders por cuadro. Leerlo desde useFrame devolvía sólo el último
+   * pase —una pantalla completa— así que el HUD decía "1 llamada de dibujo,
+   * 1 triángulo" en una escena que hace 41 llamadas y 256.013 triángulos.
+   * Dos números inventados en el panel que se usa para decidir en el stand.
+   *
+   * Con autoReset apagado el contador acumula todos los pases de todos los
+   * cuadros de la ventana, y se divide por los cuadros medidos. Sale el
+   * promedio por cuadro, y no depende de en qué momento del ciclo se lea.
+   */
+  useEffect(() => {
+    gl.info.autoReset = false
+    gl.info.reset()
+    return () => {
+      gl.info.autoReset = true
+    }
+  }, [gl])
+
   useFrame(() => {
     frames.current += 1
     const now = performance.now()
     const elapsed = now - last.current
     if (elapsed < 500) return
 
+    const cuadros = Math.max(1, frames.current)
     const fps = Math.round((frames.current / elapsed) * 1000)
     historia.current.push(fps)
     if (historia.current.length > 12) historia.current.shift()
@@ -54,8 +74,8 @@ export default function Diagnostics({ onSample }: { onSample: (d: DiagInfo) => v
       alto: size.height,
       dpr: viewport.dpr,
       objetos: countObjects(scene),
-      llamadas: info.render.calls,
-      triangulos: info.render.triangles,
+      llamadas: Math.round(info.render.calls / cuadros),
+      triangulos: Math.round(info.render.triangles / cuadros),
       texturas: info.memory.textures,
       programas: info.programs?.length ?? 0,
       fps,
@@ -63,6 +83,7 @@ export default function Diagnostics({ onSample }: { onSample: (d: DiagInfo) => v
       hojas: contarHojas(scene),
     })
 
+    gl.info.reset()
     frames.current = 0
     last.current = now
   })
