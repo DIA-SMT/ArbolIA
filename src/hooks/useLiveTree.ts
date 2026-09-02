@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabasePublic } from '../lib/supabase'
-import { DEMO_MODE, GOAL_FALLBACK, IS_SUPABASE_CONFIGURED, milestonesFor } from '../lib/config'
+import { DEMO_MODE, GOAL_FALLBACK, hitosAlcanzados, IS_SUPABASE_CONFIGURED, milestonesFor } from '../lib/config'
 import {
   EMPTY_STATS,
   fetchGoal,
@@ -331,17 +331,38 @@ export function useLiveTree(): LiveTree {
   // -------------------------------------------------------------------
   // Deteccion de hitos
   // -------------------------------------------------------------------
+  /*
+   * La meta se puede cambiar en plena feria desde el panel, y al cambiarla
+   * cambian los hitos: son 20 %, 50 % y 100 % de la meta vigente.
+   *
+   * Sin esto, subir la meta dispara una celebración falsa. Con 400 ideas y
+   * meta 500 los hitos son 100, 250 y 500, todos registrados. Al pasar la
+   * meta a 1500 los hitos pasan a 300, 750 y 1500: el 300 nunca se registró
+   * y 400 ya lo supera, así que la pantalla festejaba a pantalla completa
+   * sin que nadie hubiera cruzado nada. Bajar la meta es peor todavía:
+   * dispara varios de una.
+   *
+   * Cuando la meta cambia, los hitos ya superados se dan por vistos EN
+   * SILENCIO, igual que hace la carga inicial. Los que se crucen después sí
+   * se celebran.
+   */
+  const metaAnteriorRef = useRef(goal)
+
   useEffect(() => {
-    for (const milestone of milestonesFor(goal)) {
-      if (stats.ideas >= milestone && !milestoneReachedRef.current.has(milestone)) {
-        milestoneReachedRef.current.add(milestone)
-        // Solo celebramos si ya habia carga previa: al montar no festejamos
-        // hitos que ya estaban alcanzados desde antes.
-        if (seenIdsRef.current.size > 0 && ideas.length > 0) {
-          setCelebration(milestone)
-        }
-      }
-    }
+    const cambioLaMeta = metaAnteriorRef.current !== goal
+    metaAnteriorRef.current = goal
+
+    const nuevos = hitosAlcanzados(goal, stats.ideas, milestoneReachedRef.current)
+    for (const hito of nuevos) milestoneReachedRef.current.add(hito)
+
+    // Solo celebramos si ya habia carga previa: al montar no festejamos
+    // hitos que ya estaban alcanzados desde antes. Y tampoco al cambiar la
+    // meta, que reescribe los hitos sin que nadie haya cruzado ninguno.
+    if (cambioLaMeta || seenIdsRef.current.size === 0 || ideas.length === 0) return
+
+    // El más alto: si entraran dos juntos, festejar el chico sería raro.
+    const paraFestejar = nuevos[nuevos.length - 1]
+    if (paraFestejar !== undefined) setCelebration(paraFestejar)
   }, [stats.ideas, ideas.length, goal])
 
   // -------------------------------------------------------------------

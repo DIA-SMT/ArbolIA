@@ -11,7 +11,7 @@
     "typecheck": "tsc -b --noEmit",
     "check:tree": "esbuild scripts/check-tree.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-tree.mjs --log-level=error && node node_modules/.cache/check-tree.mjs",
     "check:labels": "esbuild scripts/check-labels.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-labels.mjs --log-level=error && node node_modules/.cache/check-labels.mjs",
-    "check": "npm run check:tree && npm run check:labels && npm run check:layout && npm run check:filtro && npm run check:criticas && npm run check:formato && npm run check:informe && npm run check:ia && npm run typecheck:api",
+    "check": "npm run check:tree && npm run check:labels && npm run check:layout && npm run check:filtro && npm run check:criticas && npm run check:formato && npm run check:informe && npm run check:hitos && npm run check:ia && npm run typecheck:api",
     "check:supabase": "esbuild scripts/check-supabase.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-supabase.mjs --log-level=error && node node_modules/.cache/check-supabase.mjs",
     "check:layout": "esbuild scripts/check-layout.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-layout.mjs --log-level=error && node node_modules/.cache/check-layout.mjs",
     "check:filtro": "esbuild scripts/check-filtro.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-filtro.mjs --log-level=error && node node_modules/.cache/check-filtro.mjs",
@@ -24,7 +24,8 @@
     "check:formato": "node scripts/correr.mjs scripts/check-formato.ts",
     "check:informe": "node scripts/correr.mjs scripts/check-informe.ts",
     "check:meta": "node scripts/correr.mjs scripts/check-meta.ts",
-    "check:moderacion": "node scripts/correr.mjs scripts/check-moderacion.ts"
+    "check:moderacion": "node scripts/correr.mjs scripts/check-moderacion.ts",
+    "check:hitos": "node scripts/correr.mjs scripts/check-hitos.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
