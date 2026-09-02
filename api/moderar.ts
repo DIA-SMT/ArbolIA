@@ -35,15 +35,17 @@ Después, si es una propuesta, decidí si su contenido puede proyectarse.
 
 RECHAZÁ únicamente si contiene:
 - Insultos, agresiones o lenguaje obsceno.
-- Ataques o acusaciones contra personas identificables (por nombre, cargo o descripción), incluidas denuncias de corrupción. No importa si son ciertas: una pantalla municipal no es el canal para eso.
+- CUALQUIER texto cuyo tema sea una persona pública, funcionario, intendente, concejal o candidato: da igual si lo ataca o si lo elogia. Los dos se rechazan, y la simetría es deliberada. Un ataque no es asunto de una pantalla municipal, y un elogio la convierte en propaganda: "el intendente es un ladrón" y "la intendenta es una crack" se rechazan igual. Incluye denuncias de corrupción, ciertas o no, y también los elogios firmados con cariño. Lo que se proyecta son ideas para la ciudad, no opiniones sobre quién la gobierna.
 - Discriminación por origen, género, religión, orientación, discapacidad o condición social.
 - Amenazas, incitación a la violencia o a actividades ilegales.
+- Apología o promoción del consumo de drogas, alcohol, contenido sexual o apuestas. La pantalla del stand la miran chicos con sus familias. "Droga para todos", "birra gratis en las plazas" o similares NO se publican, ni siquiera leídos como chiste: en la pantalla no va a estar el tono con que se escribieron. Esto NO alcanza a la política pública sobre esos temas, que sí es una propuesta legítima de ciudad: "un centro de prevención de adicciones en cada barrio" o "más campañas contra el alcohol al volante" se ACEPTAN.
 - Datos personales de terceros: teléfonos, domicilios, documentos.
 - Propaganda político-partidaria o de campaña.
 - Publicidad comercial, spam o texto sin ningún sentido.
 
 ACEPTÁ todo lo demás, y con criterio amplio. En particular:
-- La CRÍTICA A LA GESTIÓN es legítima y se acepta. "Faltan colectivos", "las calles están rotas", "el municipio no limpia el barrio" son reclamos válidos de un vecino y tienen que publicarse. Sólo se rechaza cuando ataca a una persona concreta o usa agresiones.
+- La CRÍTICA A LA GESTIÓN es legítima y se acepta. "Faltan colectivos", "las calles están rotas", "el municipio no limpia el barrio", "el transporte es un desastre" son reclamos válidos de un vecino y tienen que publicarse.
+  El límite es el SUJETO del texto, no su tono. Si habla de la ciudad, de un servicio o de una institución —"el municipio", "la muni", "el transporte", "Obras Públicas"— se acepta, aunque sea duro. Si habla de una PERSONA —el intendente, la intendenta, un concejal, un funcionario por su nombre o su cargo— se rechaza, sea elogio o crítica. "El municipio no limpia" se publica; "el intendente no limpia nada" no. No es censurar el reclamo: es que el reclamo se puede escribir sin nombrar a nadie, y la pantalla del municipio no puede opinar sobre personas.
 - Errores de ortografía, mayúsculas, informalidad y modismos tucumanos son normales. No son motivo de rechazo.
 - Una propuesta breve o poco desarrollada igual vale.
 
@@ -55,9 +57,9 @@ Eso vale para juzgar contenido, no para decidir si el texto es una propuesta. Un
 
 Además, si se publica, clasificá de qué tipo es. Esto NO decide si se publica: las dos se publican, y sólo cambia dónde aparecen en el árbol.
 
-- "propuesta": pide o imagina algo concreto para hacer en la ciudad.
+- "propuesta": pide o imagina algo CONCRETO para hacer en la ciudad.
   "Más colectivos por Mate de Luna", "Plantar árboles en la avenida",
-  "Wifi en las plazas", "Que el 118 tenga rampa".
+  "Wifi en las plazas", "Que el 118 tenga rampa", "Bicisendas en Mate de Luna".
   Brota como una hoja en las ramas.
 
 - "critica": señala algo que está mal, que falta o que no funciona, sin pedir
@@ -66,6 +68,14 @@ Además, si se publica, clasificá de qué tipo es. Esto NO decide si se publica
   hace nada", "El transporte es carísimo y funciona pésimo", "Hace dos años que
   reclamo y no me responden".
   Cae desde la copa y fortalece las raíces del árbol, que son la comunidad.
+
+LO QUE DECIDE ES SI HAY ALGO CONCRETO, no la forma del verbo. Un verbo de
+mejora sin nada concreto atrás está diciendo que algo está mal, y eso es un
+reclamo:
+  "Mejoraría las calles"                    → critica   (no dice qué hacer)
+  "Repavimentaría la calle San Juan"        → propuesta (sí lo dice)
+  "Arreglaría las veredas"                  → critica
+  "Veredas anchas y con rampa en el centro" → propuesta
 
 Si el texto hace las dos cosas —señala un problema Y pide algo concreto— es
 "propuesta". Ante la duda, "propuesta".
@@ -98,8 +108,10 @@ const ESQUEMA = {
         'ok',
         'insulto',
         'ataque_personal',
+        'sobre_funcionario',
         'discriminacion',
         'amenaza',
+        'inapropiado_para_chicos',
         'datos_personales',
         'propaganda',
         'spam',
@@ -113,7 +125,7 @@ const ESQUEMA = {
       type: 'string',
       enum: ['propuesta', 'critica'],
       description:
-        'propuesta = pide algo concreto, brota como hoja. critica = señala un problema, cae y alimenta las raíces.',
+        'propuesta = nombra una acción para la ciudad, brota como hoja. critica = sólo describe un problema, cae y alimenta las raíces.',
     },
   },
   required: ['publicar', 'categoria', 'motivo', 'tipo'],
@@ -143,12 +155,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return sinRevision(res, 'Revisión automática no configurada.')
   }
 
-  // El endpoint es público: lo llama el celular de cada vecino.
-  if (!permitir(ipDe(req), 20)) {
-    return sinRevision(res, 'Demasiadas revisiones seguidas desde esta conexión.')
+  const { texto, nombre, dispositivo } = (req.body ?? {}) as {
+    texto?: string
+    nombre?: string
+    dispositivo?: string
   }
 
-  const { texto, nombre } = (req.body ?? {}) as { texto?: string; nombre?: string }
+  /*
+   * EL LÍMITE SE CUENTA POR DISPOSITIVO, NO POR CONEXIÓN.
+   *
+   * Antes era permitir(ip, 20): veinte revisiones por minuto y por IP. Suena
+   * generoso hasta que se piensa dónde corre esto. En un stand la gente se
+   * conecta al WiFi del predio, o sale por el NAT de una misma operadora, así
+   * que decenas de vecinos comparten UNA dirección: los veinte por minuto no
+   * eran veinte por persona, eran veinte entre todos. Con cola en el stand
+   * eso se alcanza, y pasado el límite este endpoint FALLA ABIERTO —deja
+   * pasar sin revisar— justo en el momento de mayor tránsito, que es cuando
+   * más falta hace.
+   *
+   * Ahora el techo principal es por dispositivo, igual que los límites de la
+   * base: 6 por minuto contra el 1-cada-12-segundos del trigger, así que un
+   * celular legítimo nunca lo toca. Y se conserva un techo por IP, alto, para
+   * el caso que el límite existía para frenar: alguien que encuentra la URL y
+   * la llama en bucle inventando identificadores.
+   */
+  const porDispositivo =
+    typeof dispositivo === 'string' && /^dev_[a-z0-9]{8,40}$/i.test(dispositivo)
+      ? permitir(`dev:${dispositivo}`, 6)
+      : true
+
+  const porConexion = permitir(`ip:${ipDe(req)}`, 240)
+
+  if (!porDispositivo || !porConexion) {
+    return sinRevision(res, 'Demasiadas revisiones seguidas desde esta conexión.')
+  }
 
   if (typeof texto !== 'string' || texto.trim().length < 3) {
     return res.status(400).json({ error: 'Falta el texto de la propuesta.' })

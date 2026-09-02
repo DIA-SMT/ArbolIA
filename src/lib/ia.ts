@@ -1,3 +1,4 @@
+import { getDeviceId } from './device'
 import type { TipoIdea } from './types'
 
 /**
@@ -81,7 +82,18 @@ export async function revisarPropuesta(
     const res = await fetch('/api/moderar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texto, nombre: nombre || undefined }),
+      /*
+       * Va el identificador anónimo del celular para que el límite de tasa
+       * del servidor se cuente por dispositivo y no por conexión. En el WiFi
+       * de un predio decenas de vecinos comparten una sola IP, y un límite
+       * por IP los cuenta a todos juntos. No es un dato personal: es el mismo
+       * id aleatorio local que ya usa el envío. Ver api/moderar.ts.
+       */
+      body: JSON.stringify({
+        texto,
+        nombre: nombre || undefined,
+        dispositivo: getDeviceId(),
+      }),
       signal: corte.signal,
     })
 
