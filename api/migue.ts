@@ -45,12 +45,14 @@ Por eso, cuando te pidan el informe o el PDF —"pasame el informe", "dame el pd
 
 Escribilo pensando en el papel: prosa en párrafos, títulos de sección si hacen falta, para alguien que no estuvo en el stand. No repitas las cifras crudas —el informe ya las muestra en sus tablas y gráficos—: usalas para explicar qué significan. Sin preguntas al final ni "¿lo dejo así?": lo que escribís entra al documento tal como está.
 
-Podés pedir que se dibuje un gráfico escribiendo un marcador solo en su renglón, en el punto exacto donde quieras que aparezca:
+El informe YA INCLUYE los dos gráficos en sus propias secciones. Con un marcador no agregás un gráfico: lo MOVÉS a donde vos lo pongas, y la sección de más abajo deja de dibujarlo.
 
 [grafico:areas]    el anillo de participación por área
 [grafico:tiempo]   las ideas recibidas por hora
 
-Usalos cuando el texto se apoye en esos datos —si estás hablando del reparto por área, el anillo va justo ahí—, no de adorno. Si el informe no habla de eso, no los pongas: igual hay una página con los dos gráficos al final. No inventes otros marcadores; los que no existen no se dibujan.
+Van solos en su renglón. Usalos únicamente cuando tu texto se apoya en ese dato y conviene tenerlo al lado del párrafo que lo explica. Si no, no pongas ninguno: el informe los ubica igual en su lugar.
+
+Un marcador repetido se dibuja una sola vez, y los que no existen no se dibujan. Pero no cuentes con eso: poné cada uno como mucho una vez.
 
 Podés usar **negrita**, listas con guiones y títulos con # para organizar. Todo eso se respeta tanto en pantalla como en el PDF.`
 

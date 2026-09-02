@@ -29,9 +29,12 @@ import {
   areaLider,
   bloquesConClave,
   citasPorArea,
+  graficosPedidos,
   horaPico,
+  normalizarGrafico,
   planificarInforme,
   porcentaje,
+  sinGraficosRepetidos,
   type DatosInforme,
 } from '../src/lib/informePlan'
 import { CATEGORIES } from '../src/lib/categories'
@@ -307,6 +310,99 @@ const claves = (d: DatosInforme) => planificarInforme(d).map((s) => s.clave)
   )
   check('con reclamos sí', conCritica.includes('criticas'))
 }
+
+console.log('\nGRÁFICOS: CADA UNO UNA SOLA VEZ')
+
+/**
+ * Cuenta cuántas veces se dibuja cada gráfico en TODO el documento.
+ *
+ * Es la comprobación que faltaba. El informe trae sus secciones de área y de
+ * tiempo, y Migue además puede pedir el mismo gráfico con un marcador dentro
+ * de su análisis: el equipo vio el mismo anillo dos y tres veces en el PDF.
+ */
+const contarGraficos = (d: DatosInforme) => {
+  const cuenta: Record<string, number> = { areas: 0, tiempo: 0 }
+  for (const seccion of planificarInforme(d)) {
+    for (const bloque of seccion.bloques) {
+      if (bloque.tipo === 'grafico') cuenta[bloque.cual]++
+      if (bloque.tipo === 'markdown') {
+        for (const m of sinGraficosRepetidos(bloque.texto)) {
+          if (m.tipo === 'grafico') {
+            const cual = normalizarGrafico(m.cual)
+            if (cual) cuenta[cual]++
+          }
+        }
+      }
+    }
+  }
+  return cuenta
+}
+
+const sinRepetir = (d: DatosInforme, etiqueta: string) => {
+  const c = contarGraficos(d)
+  check(
+    etiqueta,
+    c.areas <= 1 && c.tiempo <= 1,
+    `anillo x${c.areas}, tiempo x${c.tiempo}`,
+  )
+}
+
+sinRepetir(datosBase(), 'sin análisis, cada gráfico va una vez')
+sinRepetir(
+  datosBase({ analisis: 'El reparto por área es parejo.\n\n[grafico:areas]\n\nY se ve acá.' }),
+  'con el anillo pedido por Migue, no se duplica',
+)
+sinRepetir(
+  datosBase({ analisis: '[grafico:areas]\n\n[grafico:tiempo]\n\nLos dos.' }),
+  'con los dos pedidos por Migue, ninguno se duplica',
+)
+sinRepetir(
+  datosBase({
+    analisis: '[grafico:areas]\n\ntexto\n\n[grafico:areas]\n\nmás\n\n[grafico:areas]',
+  }),
+  'el mismo marcador tres veces se dibuja una',
+)
+sinRepetir(
+  datosBase({ analisis: '[grafico:anillo]\n\n[grafico:ritmo]' }),
+  'los alias también cuentan como el mismo gráfico',
+)
+
+{
+  const conAnillo = planificarInforme(
+    datosBase({ analisis: 'Mirá el reparto.\n\n[grafico:areas]' }),
+  )
+  const areas = conAnillo.find((s) => s.clave === 'areas')
+  check(
+    'si Migue ubica el anillo, la sección de áreas conserva su tabla',
+    !!areas && areas.bloques.some((x) => x.tipo === 'tablaAreas'),
+    'ceder el gráfico no puede costar los números',
+  )
+  check(
+    'y ya no dibuja el anillo otra vez',
+    !!areas && !areas.bloques.some((x) => x.tipo === 'grafico'),
+  )
+}
+
+{
+  const conTiempo = planificarInforme(datosBase({ analisis: '[grafico:tiempo]' }))
+  check(
+    'si Migue ubica la línea de tiempo, esa sección no queda vacía: no va',
+    !conTiempo.some((s) => s.clave === 'tiempo'),
+    'un título con una hoja en blanco abajo es peor que no tener la sección',
+  )
+}
+
+check('el alias anillo es el gráfico de áreas', normalizarGrafico('anillo') === 'areas')
+check('el alias ritmo es la línea de tiempo', normalizarGrafico('Ritmo') === 'tiempo')
+check('un gráfico inventado no existe', normalizarGrafico('barras3d') === null)
+check(
+  'un marcador inventado no deja un bloque vacío',
+  sinGraficosRepetidos('[grafico:barras3d]').length === 0,
+)
+check(
+  'sin análisis no hay gráficos pedidos',
+  graficosPedidos(null).size === 0 && graficosPedidos('   ').size === 0,
+)
 
 console.log('\nHONESTIDAD DEL DOCUMENTO')
 

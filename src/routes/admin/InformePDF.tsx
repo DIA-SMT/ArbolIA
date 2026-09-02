@@ -2,12 +2,13 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } 
 import AreasDonut from './AreasDonut'
 import TimelineChart from './TimelineChart'
 import { BloqueMigue } from './TextoMigue'
-import { analizarMarkdown } from '../../lib/formatoMigue'
 import {
   bloquesConClave,
   mesYAnio,
+  normalizarGrafico,
   planificarInforme,
   porcentaje,
+  sinGraficosRepetidos,
   type BloquePlan,
   type DatosInforme,
 } from '../../lib/informePlan'
@@ -299,11 +300,12 @@ function armarPiezas(datos: DatosInforme): Pieza[] {
     if (!bloque) continue
 
     if (bloque.tipo === 'markdown') {
-      analizarMarkdown(bloque.texto).forEach((b, i) => {
+      // Ya viene sin gráficos repetidos: si Migue escribió el mismo marcador
+      // tres veces, se dibuja una sola.
+      sinGraficosRepetidos(bloque.texto).forEach((b, i) => {
         piezas.push({
           clave: `${aplanado.clave}:md${i}`,
           esTitulo: false,
-          // Un título dentro del análisis también arrastra lo que titula.
           nodo: <BloqueMigue bloque={b} grafico={(cual) => grafico(cual, datos)} />,
         })
       })
@@ -322,15 +324,10 @@ function armarPiezas(datos: DatosInforme): Pieza[] {
 
 /** Los gráficos que Migue puede pedir con [grafico:x] dentro de su análisis. */
 function grafico(cual: string, datos: DatosInforme): ReactNode {
-  if (cual === 'areas' || cual === 'area' || cual === 'anillo') {
-    return dibujar({ tipo: 'grafico', cual: 'areas' }, datos)
-  }
-  if (cual === 'tiempo' || cual === 'linea' || cual === 'ritmo') {
-    return dibujar({ tipo: 'grafico', cual: 'tiempo' }, datos)
-  }
-  // Un modelo puede inventar un nombre de gráfico, y eso no puede romper
-  // el informe: el marcador desconocido simplemente no dibuja nada.
-  return null
+  const normal = normalizarGrafico(cual)
+  // Un modelo puede inventar un nombre de gráfico, y eso no puede romper el
+  // informe: el marcador desconocido simplemente no dibuja nada.
+  return normal ? dibujar({ tipo: 'grafico', cual: normal }, datos) : null
 }
 
 function dibujar(bloque: BloquePlan, datos: DatosInforme): ReactNode {
@@ -354,6 +351,37 @@ function dibujar(bloque: BloquePlan, datos: DatosInforme): ReactNode {
         <div className="inf__kpi inf__kpi--criticas">
           <b>{stats.criticas.toLocaleString('es-AR')}</b>
           <span>Críticas</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (bloque.tipo === 'balance') {
+    /*
+     * Cuánto de lo que llegó es propuesta y cuánto reclamo.
+     *
+     * Se cuenta sobre la suma de las dos y no sobre stats.ideas: si alguna vez
+     * quedaran descuadradas, la barra tiene que seguir sumando 100 % en vez de
+     * dibujar un hueco que nadie sabe explicar.
+     */
+    const total = stats.propuestas + stats.criticas
+    const pProp = porcentaje(stats.propuestas, total)
+
+    return (
+      <div className="inf__balance">
+        <div className="inf__balance-barra">
+          <span className="inf__balance-prop" style={{ width: `${pProp}%` }} />
+          <span className="inf__balance-crit" style={{ width: `${100 - pProp}%` }} />
+        </div>
+        <div className="inf__balance-leyenda">
+          <span>
+            <i className="inf__punto inf__punto--prop" />
+            Propuestas · {stats.propuestas.toLocaleString('es-AR')} ({pProp} %) · brotan como hoja
+          </span>
+          <span>
+            <i className="inf__punto inf__punto--crit" />
+            Reclamos · {stats.criticas.toLocaleString('es-AR')} ({100 - pProp} %) · extienden la raíz
+          </span>
         </div>
       </div>
     )
@@ -401,8 +429,8 @@ function dibujar(bloque: BloquePlan, datos: DatosInforme): ReactNode {
         <thead>
           <tr>
             <th>Área</th>
-            <th>Ideas</th>
-            <th>%</th>
+            <th className="inf__num">Ideas</th>
+            <th className="inf__num">%</th>
             <th />
           </tr>
         </thead>
@@ -410,8 +438,8 @@ function dibujar(bloque: BloquePlan, datos: DatosInforme): ReactNode {
           {filas.map((a) => (
             <tr key={a.slug}>
               <td>{a.label}</td>
-              <td>{a.total.toLocaleString('es-AR')}</td>
-              <td>{porcentaje(a.total, stats.ideas)} %</td>
+              <td className="inf__num">{a.total.toLocaleString('es-AR')}</td>
+              <td className="inf__num">{porcentaje(a.total, stats.ideas)} %</td>
               <td style={{ width: '28%' }}>
                 <span
                   className="inf__barra"
@@ -433,7 +461,9 @@ function dibujar(bloque: BloquePlan, datos: DatosInforme): ReactNode {
       AGE_RANGES.find((r) => r.slug === slug)?.label ?? slug
     const areaLabel = (slug: string | null) =>
       slug ? (CATEGORIES.find((c) => c.slug === slug)?.label ?? slug) : '—'
-    const totalConEdad = edades.reduce((t, e) => t + e.total, 0)
+    const conAlgo = edades.filter((e) => e.total > 0)
+    const totalConEdad = conAlgo.reduce((t, e) => t + e.total, 0)
+    const mayor = conAlgo.reduce((m, e) => Math.max(m, e.total), 0)
 
     return (
       <table className="inf__tabla">
@@ -441,21 +471,28 @@ function dibujar(bloque: BloquePlan, datos: DatosInforme): ReactNode {
           <tr>
             <th>Rango etario</th>
             <th>Área que más eligió</th>
-            <th>Ideas</th>
-            <th>%</th>
+            <th className="inf__num">Ideas</th>
+            <th className="inf__num">%</th>
+            <th />
           </tr>
         </thead>
         <tbody>
-          {edades
-            .filter((e) => e.total > 0)
-            .map((e) => (
-              <tr key={e.slug}>
-                <td>{etiqueta(e.slug)}</td>
-                <td>{areaLabel(e.topArea)}</td>
-                <td>{e.total.toLocaleString('es-AR')}</td>
-                <td>{porcentaje(e.total, totalConEdad)} %</td>
-              </tr>
-            ))}
+          {conAlgo.map((e) => (
+            <tr key={e.slug}>
+              <td>{etiqueta(e.slug)}</td>
+              <td>{areaLabel(e.topArea)}</td>
+              <td className="inf__num">{e.total.toLocaleString('es-AR')}</td>
+              <td className="inf__num">{porcentaje(e.total, totalConEdad)} %</td>
+              {/* La barra evita que la tabla sea una lista de números: se ve
+                  de un vistazo qué generación participó más. */}
+              <td style={{ width: '24%' }}>
+                <span
+                  className="inf__barra"
+                  style={{ width: mayor > 0 ? `${Math.round((e.total / mayor) * 100)}%` : '0%' }}
+                />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     )

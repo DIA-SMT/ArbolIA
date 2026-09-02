@@ -468,9 +468,15 @@
   background: var(--azul-profundo);
 }
 
-.inf__tabla thead th:last-child,
-.inf__tabla tbody td:last-child,
-.inf__tabla tbody td:nth-last-child(2) {
+/*
+ * Las celdas de números se marcan con una clase, no por posición.
+ *
+ * La primera versión alineaba con :last-child y :nth-last-child(2). Andaba
+ * mientras las tablas tuvieran las mismas columnas; al agregarle una columna
+ * a la de edades, la alineación se corrió sola y una columna de números quedó
+ * pegada a la izquierda. La posición no es lo que define a un número.
+ */
+.inf__tabla .inf__num {
   text-align: right;
   /* Los números se leen en columna: alineados y de ancho fijo. */
   font-variant-numeric: tabular-nums;
@@ -583,4 +589,64 @@
   top: 0;
   width: 210mm;
   pointer-events: none;
+}
+
+/* ------------------------------------------------ Barra de reparto */
+
+/*
+ * Propuestas contra reclamos, de un vistazo.
+ *
+ * Es la lectura que define al proyecto y la que la instalación hace con la
+ * hoja y el fruto: lo que se propone brota arriba, lo que se reclama cae y
+ * refuerza la raíz. En el informe conviene que eso se vea antes de leer una
+ * sola cifra.
+ */
+.inf__balance {
+  margin: 0 0 5mm;
+}
+
+.inf__balance-barra {
+  display: flex;
+  height: 5.5mm;
+  border-radius: 1.2mm;
+  overflow: hidden;
+  background: var(--linea);
+}
+
+.inf__balance-prop {
+  background: linear-gradient(90deg, var(--azul), var(--celeste));
+}
+
+.inf__balance-crit {
+  background: linear-gradient(90deg, #f0c419, var(--amarillo));
+}
+
+.inf__balance-leyenda {
+  display: flex;
+  gap: 8mm;
+  margin-top: 2mm;
+  font-size: 7.5pt;
+  color: var(--gris);
+}
+
+.inf__balance-leyenda span {
+  display: flex;
+  align-items: center;
+  gap: 1.4mm;
+}
+
+.inf__punto {
+  display: inline-block;
+  width: 2.2mm;
+  height: 2.2mm;
+  border-radius: 50%;
+  flex: none;
+}
+
+.inf__punto--prop {
+  background: var(--azul);
+}
+
+.inf__punto--crit {
+  background: var(--amarillo);
 }

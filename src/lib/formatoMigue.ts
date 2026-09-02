@@ -30,8 +30,18 @@ export type Bloque =
   /** Marcador de gráfico: [grafico:areas]. Ver informe/graficos. */
   | { tipo: 'grafico'; cual: string }
 
-/** `[grafico:areas]` en una línea sola. */
-const MARCA_GRAFICO = /^\[grafico:([a-z-]+)\]$/i
+/**
+ * `[grafico:areas]` en una línea sola.
+ *
+ * Acepta números y guiones bajos aunque ningún gráfico los use, y es a
+ * propósito: lo que se reconoce acá es la FORMA del marcador, no el nombre.
+ * Antes el patrón era `[a-z-]+`, así que un nombre inventado con un dígito
+ * —`[grafico:barras3d]`, y los modelos inventan— no se reconocía como
+ * marcador y terminaba impreso tal cual, entre corchetes, en un PDF que va a
+ * la jefatura. Reconocerlo permite descartarlo: quién decide qué gráficos
+ * existen es normalizarGrafico, en informePlan.
+ */
+const MARCA_GRAFICO = /^\[grafico:([a-z0-9_-]+)\]$/i
 
 /**
  * Divide una línea en trozos con formato.
