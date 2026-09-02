@@ -142,7 +142,19 @@ export default function TreeStructure({ growth, highlightSlug, pulsoRaices }: Pr
       model.branches.map((branch) =>
         createEnergyMaterial({
           energyColor: branch.color,
-          barkColor: '#111f2b',
+          /*
+           * Se aclaró de #111f2b, que sobre el fondo #050a12 era casi el
+           * fondo mismo.
+           *
+           * Antes no se notaba porque la copa arrancaba con miles de hojas
+           * encima: las ramas eran una sombra debajo del follaje y estaba
+           * bien que lo fueran. Ahora el árbol arranca pelado y el esqueleto
+           * es TODO lo que hay en pantalla el primer día, así que tiene que
+           * leerse solo. El shader oscurece por grosor, así que las ramitas
+           * finas siguen siendo las más claras y la copa vacía se lee como
+           * una trama y no como una masa.
+           */
+          barkColor: '#1e3a4d',
           speed: 0.15,
           pulseCount: 1.2,
           direction: 1,

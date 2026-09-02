@@ -37,11 +37,16 @@ interface Props {
 /**
  * Follaje del árbol en dos capas instanciadas:
  *
- *  1. Ambiente — hojas tenues que existen desde el minuto cero. Sin esto,
- *     el primer día a las 9 de la mañana el árbol se vería pelado, y un
- *     árbol pelado no genera "¿qué es eso?", genera lástima.
+ *  1. Ambiente — hojas tenues cuya cantidad sale de la etapa de crecimiento.
+ *     Con cero ideas son CERO: el árbol arranca pelado y se llena a lo largo
+ *     de la feria. Acá decía que un árbol pelado "genera lástima" y que por
+ *     eso el follaje existía desde el minuto cero; se cambió por pedido del
+ *     equipo y el motivo está explicado en growth.ts, donde vive el número.
  *  2. Ciudadanas — una por idea recibida, con el color de su categoría y
  *     un brillo muy por encima del ambiente. Son las que se ven.
+ *
+ * Son mallas SEPARADAS, con geometría y material propios: la cantidad de
+ * ambiente no puede borrar ni escalar una hoja ciudadana.
  */
 export default function Leaves({ ideas, growth, quality }: Props) {
   const citizenRef = useRef<THREE.InstancedMesh>(null)
@@ -115,13 +120,54 @@ export default function Leaves({ ideas, growth, quality }: Props) {
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
   }, [model, ambientGeometry])
 
-  // La densidad del follaje base sube con la etapa de crecimiento.
+  /*
+   * La densidad del follaje base sube con la etapa de crecimiento.
+   *
+   * El objetivo se guarda acá y lo persigue el useFrame de abajo, en vez de
+   * escribirse de una. Antes esto asignaba mesh.count directo, y con follaje
+   * de arranque no importaba: el escalón de una idea eran 96 hojas nuevas
+   * sobre 9.280 ya presentes, invisible.
+   *
+   * Con el árbol arrancando pelado el escalón se ve. Cada idea mueve la
+   * densidad 0.3/tramo, que con meta 500 son ~48 hojas y con meta 100 son
+   * 240: doscientas cuarenta hojas apareciendo en un cuadro se leen como un
+   * parpadeo, no como algo que crece.
+   */
+  const objetivoAmbiente = useRef(0)
+
   useLayoutEffect(() => {
+    const techo = quality === 'alta' ? MAX_AMBIENT : Math.round(MAX_AMBIENT * 0.5)
+    objetivoAmbiente.current = Math.min(
+      techo,
+      Math.round(techo * Math.min(1, Math.max(0, growth.foliageDensity))),
+    )
+  }, [growth.foliageDensity, quality])
+
+  /*
+   * Las hojas de ambiente brotan de a poco hasta alcanzar el objetivo.
+   *
+   * Se avanza por proporción y no por cantidad fija: así el tramo largo del
+   * principio —de cero a las primeras miles— se recorre rápido, y los ajustes
+   * finos de después no se arrastran. El piso de 1 garantiza que siempre
+   * termine de llegar, y el techo por cuadro evita que un salto grande de
+   * densidad se dibuje de golpe.
+   *
+   * El barajado de los slots (ver treeGeometry) es lo que hace que las hojas
+   * nuevas caigan repartidas por toda la copa en vez de amontonarse en una
+   * rama: sin eso, crecer de a poco se vería como una mancha.
+   */
+  useFrame((_, delta) => {
     const mesh = ambientRef.current
     if (!mesh) return
-    const techo = quality === 'alta' ? MAX_AMBIENT : Math.round(MAX_AMBIENT * 0.5)
-    mesh.count = Math.min(techo, Math.round(techo * Math.min(1, growth.foliageDensity)))
-  }, [growth.foliageDensity, quality])
+    const objetivo = objetivoAmbiente.current
+    if (mesh.count === objetivo) return
+
+    const falta = objetivo - mesh.count
+    const paso = Math.max(1, Math.round(Math.abs(falta) * Math.min(1, delta * 1.6)))
+    mesh.count = falta > 0
+      ? Math.min(objetivo, mesh.count + paso)
+      : Math.max(objetivo, mesh.count - paso)
+  })
 
   // ---- Hojas ciudadanas ---------------------------------------------
   useLayoutEffect(() => {
