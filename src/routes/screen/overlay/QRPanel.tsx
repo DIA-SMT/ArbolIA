@@ -16,14 +16,34 @@ export default function QRPanel() {
   useEffect(() => {
     let cancelled = false
 
-    QRCode.toDataURL(QR_TARGET, {
+    /*
+     * SVG, no PNG, y el motivo es que el QR se achicó.
+     *
+     * Antes era toDataURL con scale 12: un PNG de ~324px que el CSS AMPLIABA
+     * a 428px en el LED. Para ampliar estaba bien, y por eso el CSS pedía
+     * image-rendering: pixelated, que conserva los bordes duros.
+     *
+     * Ahora el QR mide ~240px, así que el mismo PNG habría que REDUCIRLO, en
+     * una proporción que no es entera. Reducir con nearest-neighbor deja
+     * módulos de distinto ancho —unos de 8px, otros de 9— y un patrón
+     * irregular es justo lo que hace dudar a las cámaras. Peor todavía: el
+     * tamaño del PNG depende de cuán larga sea la URL, así que la proporción
+     * cambiaría con VITE_PUBLIC_URL sin que nadie lo note.
+     *
+     * En SVG el problema no existe a ningún tamaño. Y el margen sube de 1 a 2
+     * módulos: la especificación recomienda 4 de zona de silencio, y entre
+     * esto y el padding blanco de la tarjeta se llega a algo razonable.
+     */
+    QRCode.toString(QR_TARGET, {
+      type: 'svg',
       errorCorrectionLevel: 'M',
-      margin: 1,
-      scale: 12,
+      margin: 2,
       color: { dark: '#050a12', light: '#ffffff' },
     })
-      .then((url) => {
-        if (!cancelled) setDataUrl(url)
+      .then((svg) => {
+        if (!cancelled) {
+          setDataUrl(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`)
+        }
       })
       .catch(() => {
         if (!cancelled) setDataUrl(null)

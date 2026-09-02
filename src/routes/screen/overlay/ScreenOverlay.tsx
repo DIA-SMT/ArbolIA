@@ -83,6 +83,17 @@ export default function ScreenOverlay({
           </p>
         </div>
 
+        {/*
+          Las cifras van agrupadas, y no es decorativo.
+
+          En el LED VERTICAL del stand la columna izquierda tiene que dejar de
+          ser una columna alta: la pregunta se va arriba del árbol y las
+          cifras quedan en una franja abajo. Para poder mandarlas a dos zonas
+          distintas del grid hacen falta dos cajas, y sin este contenedor los
+          cuatro bloques se ubicarían de a uno por auto-placement, que es
+          justamente lo que llenaría la franja del árbol. Ver overlay.css.
+        */}
+        <div className="overlay__cifras">
         <div className="panel">
           <p className="panel__label">Ciudadanos participando</p>
           <p className="panel__value">
@@ -126,6 +137,7 @@ export default function ScreenOverlay({
           </div>
 
           <p className="goal__pct">{Math.round(progress * 100)}% del objetivo</p>
+        </div>
         </div>
       </aside>
 

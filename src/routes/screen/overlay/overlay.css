@@ -17,10 +17,22 @@
   --u: clamp(11px, min(0.9vw, 2vh), 34px);
 }
 
-/* En un tótem vertical el ancho es el lado corto: manda el alto. */
+/*
+ * En vertical la unidad se ata al lado CORTO, que es el ancho.
+ *
+ * Acá decía 1.5vh, o sea el lado LARGO, con el razonamiento de que en un
+ * tótem manda el alto. Es el error que infló toda la maqueta: 1.5vh de 1920
+ * son 28.8px contra 17.3px en el LED apaisado, así que rotar la pantalla
+ * agrandaba la tipografía un 67 % justo donde hay 1080px de ancho para
+ * acomodar los renglones. La columna izquierda se comía el 64 % del alto y le
+ * escribía la pregunta encima de la copa.
+ *
+ * El min() toma el menor de los dos ejes: en 1080x1920 da 20px y en un
+ * celular de 393 se apoya en el piso de 11px.
+ */
 @media (max-aspect-ratio: 1/1) {
   :root {
-    --u: clamp(12px, 1.5vh, 34px);
+    --u: clamp(11px, min(1.05vh, 2.4vw), 26px);
   }
 }
 
@@ -184,6 +196,20 @@
   flex-direction: column;
   gap: 0.85vh;
   align-self: center;
+}
+
+/*
+ * Las cifras, agrupadas.
+ *
+ * En apaisado esto es transparente: repite el mismo flex column y el mismo
+ * gap que la columna, así que la pila se ve igual que cuando los cuatro
+ * bloques eran hijos directos. La caja existe para el LED vertical, donde la
+ * pregunta y las cifras van a zonas distintas del grid.
+ */
+.overlay__cifras {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85vh;
 }
 
 .overlay__right {
@@ -589,7 +615,15 @@
   width: 100%;
   height: 100%;
   display: block;
-  image-rendering: pixelated;
+  /*
+   * Sin image-rendering: pixelated.
+   *
+   * Estaba puesto porque el QR era un PNG que se AMPLIABA, y ahí conserva los
+   * bordes duros. Ahora es un SVG (ver QRPanel) y se dibuja nítido a
+   * cualquier tamaño; forzar nearest-neighbor sobre un vectorial no aporta
+   * nada, y si algún día volviera a ser PNG achicado, dejaría los módulos de
+   * ancho desigual y el código costaría de escanear.
+   */
 }
 
 .qr__fallback {
@@ -759,25 +793,153 @@
   }
 }
 
-/* Pantalla vertical (tótem): las columnas pasan a filas. */
+/* =====================================================================
+   PANTALLA VERTICAL (el LED del stand, montado en retrato)
+
+   Acá las columnas no pueden seguir siendo columnas. La versión anterior
+   convertía la izquierda en una fila `auto` sin techo: medida en el LED real,
+   se comía el 64 % del alto y dejaba al árbol el 19 %. La pregunta terminaba
+   dibujada encima de la copa, y el QR —que hereda su lado del ancho de la
+   celda— crecía a 465px de lado, el 43 % del ancho de la pantalla.
+
+   La composición nueva es en BANDAS, que es lo que pide un formato vertical:
+
+     franja de arriba   el sello institucional y la pregunta
+     banda del medio    el árbol, sin nada encima
+     franja de abajo    las cifras y el QR, lado a lado
+
+   El árbol tiene un mínimo garantizado con minmax: si las cifras crecieran,
+   lo que se comprime es el sobrante, nunca la banda del árbol.
+
+   Esto se apoya en el encuadre de cámara, que también cambió: encuadrando
+   por ancho el árbol ocupa el 62 % del alto en vez del 96 %, y va del 14 %
+   al 75 % de la pantalla. Las bandas caen justo en lo que queda libre. Ver
+   ANCHO_UNITARIO en TreeScene.
+   ===================================================================== */
 @media (max-aspect-ratio: 1/1) {
   .overlay {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto 1fr auto auto;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto minmax(50vh, 1fr) auto;
     grid-template-areas:
       'top    top'
+      'ask    ask'
       'center center'
-      'left   right'
-      'bottom bottom';
+      'cifras right';
+    padding: 2vh 3.4vw max(2vh, env(safe-area-inset-bottom));
+    gap: 1vh 2.4vw;
   }
 
-  .overlay__left,
+  /*
+   * La columna izquierda desaparece como caja y sus dos hijos se ubican
+   * solos. display:contents es lo que permite mandar la pregunta arriba del
+   * árbol y las cifras abajo sin tocar el orden del HTML.
+   */
+  .overlay__left {
+    display: contents;
+  }
+
+  .ask {
+    grid-area: ask;
+    align-self: start;
+  }
+
+  .overlay__cifras {
+    grid-area: cifras;
+    align-self: end;
+    /* Las tres tarjetas en fila y la meta cruzando abajo: tres bloques de
+       alto en vez de cinco. */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.9vh 1.4vw;
+  }
+
+  .overlay__cifras .goal {
+    grid-column: 1 / -1;
+  }
+
   .overlay__right {
     align-self: end;
   }
 
+  /* La pregunta manda por peso, no por tamaño: en 1080px de ancho entra en
+     dos renglones y deja de tapar la copa. */
+  .ask__title {
+    font-size: calc(var(--u) * 2.15);
+    line-height: 1.08;
+  }
+
+  /* El fragmento verde dejaba de robarse un renglón entero para él solo. */
+  .ask__title span {
+    display: inline;
+  }
+
+  .ask__phrase {
+    font-size: calc(var(--u) * 0.98);
+    margin-top: 0.4em;
+  }
+
+  /*
+   * EL QR, CON MEDIDA PROPIA.
+   *
+   * Antes su lado lo decidía la celda: width 100% sobre una columna de 1fr,
+   * o sea media pantalla. En el LED vertical eran 465px de lado, el 43 % del
+   * ancho, y crecía un 76 % respecto del LED apaisado — al revés de lo que
+   * hace falta, porque un tótem se mira desde más cerca que una pantalla
+   * ancha, no desde más lejos.
+   *
+   * Ahora se ata a --u, que en retrato sale del lado corto. Da ~240px en el
+   * LED (22 % del ancho) y ~132px en un celular. El 12 es el único número a
+   * calibrar en el armado: si desde donde se para el vecino la cámara duda
+   * más de dos segundos, subirlo a 14.
+   */
+  .overlay__right .qr {
+    max-width: calc(var(--u) * 14);
+  }
+
+  .overlay__right .qr__card {
+    width: min(38vw, calc(var(--u) * 12));
+  }
+
   .recent {
     display: none;
+  }
+}
+
+/* =====================================================================
+   RETRATO ANGOSTO (un celular, no el tótem)
+
+   Hasta acá el proyecto no distinguía los dos: un LED de 1080 de ancho y un
+   celular de 393 entraban por la misma rama de aspect-ratio y recibían las
+   mismas proporciones. Son casos con necesidades opuestas.
+   ===================================================================== */
+@media (max-aspect-ratio: 1/1) and (max-width: 700px) {
+  /* La frase rotativa es lo primero que sobra: el árbol necesita ese alto
+     más de lo que el overlay necesita el renglón. */
+  .ask__phrase {
+    display: none;
+  }
+
+  /*
+   * El interletrado de las etiquetas, que en una tarjeta de 55px de texto
+   * hacía que "Ciudadanos" no entrara ni solo en su renglón: 0.2em sobre un
+   * cuerpo de 8px son 27px de más. Medido, no estimado.
+   */
+  .panel__label {
+    letter-spacing: 0.04em;
+  }
+
+  /*
+   * Y el QR se achica bastante más que en el tótem, porque acá no cumple
+   * ninguna función: quien está viendo esto en un celular ya está en la
+   * página. Nadie apunta la cámara a su propia pantalla. Se lo deja como
+   * referencia visual y el lugar se lo queda el árbol.
+   */
+  .overlay__right .qr {
+    max-width: calc(var(--u) * 11);
+  }
+
+  .overlay__right .qr__card {
+    width: calc(var(--u) * 9);
   }
 }
 

@@ -246,6 +246,23 @@ const LLENADO_MIN = 0.56
 const LLENADO_MAX = 0.7
 
 /**
+ * Ancho del árbol en unidades de modelo, como ALTO_UNITARIO es su alto.
+ *
+ * No sale de la geometría a mano: medirla incluye el disco de suelo, que es
+ * mucho más ancho que la copa y arrastraría el valor al doble. Se derivó de
+ * la pantalla: a la distancia de encuadre medida, el árbol ocupaba el 97 %
+ * del ancho del LED vertical, lo que da 7.2 unidades de modelo. Coherente
+ * con un alto de 6.64: la copa es apenas más ancha que alta.
+ *
+ * Si se cambia la ramificación del árbol, este número hay que volver a
+ * medirlo. El síntoma de que quedó corto es la copa tocando los bordes.
+ */
+const ANCHO_UNITARIO = 7.2
+
+/** Cuánto del ANCHO ocupa el árbol cuando el encuadre lo decide el ancho. */
+const LLENADO_ANCHO = 0.92
+
+/**
  * Órbita lenta y continua alrededor del árbol.
  *
  * Un plano fijo se lee como una imagen; el movimiento sostenido es lo que
@@ -259,7 +276,7 @@ function CameraRig({
   celebration: number | null
   escalaRef: React.MutableRefObject<number>
 }) {
-  const { camera } = useThree()
+  const { camera, size } = useThree()
   const timeRef = useRef(0)
   const celebrationRef = useRef(0)
   const lastCelebration = useRef<number | null>(null)
@@ -317,11 +334,36 @@ function CameraRig({
     )
     const relleno = THREE.MathUtils.lerp(LLENADO_MIN, LLENADO_MAX, avance)
 
-    // Distancia a la que un objeto de esa altura ocupa esa fracción del
-    // cuadro. El fov de three es VERTICAL, así que esto no depende de si el
-    // LED es 16:9 o más ancho.
+    /*
+     * EL ENCUADRE MIRA LOS DOS EJES, y el motivo es el LED del stand.
+     *
+     * Acá sólo se encuadraba por alto, con este razonamiento: el fov de
+     * three es VERTICAL, así que la cuenta no depende de si el LED es 16:9 o
+     * más ancho. Es cierto mientras la pantalla sea apaisada. El LED del
+     * stand está montado en VERTICAL, y ahí se rompe.
+     *
+     * El campo horizontal sale de fovH = 2*atan(tan(fov/2) * aspecto). Con
+     * fov 42 son 68.6° en 1920x1080 y apenas 24.4° en 1080x1920: un tercio.
+     * Encuadrando sólo por alto, el árbol se salía por los costados —medido
+     * en la pantalla real, tocaba el borde izquierdo— y además ocupaba el
+     * 96 % del alto, así que no quedaba una sola franja libre para los datos
+     * y el overlay terminaba escrito encima de la copa.
+     *
+     * Con el max() manda la distancia más lejana de las dos. En apaisado
+     * gana la de alto por amplio margen, así que el LED horizontal queda
+     * EXACTAMENTE como estaba. En vertical gana la de ancho: el árbol entra
+     * entero y su alto en pantalla baja a poco más de la mitad, que es lo
+     * que libera las bandas de arriba y de abajo.
+     */
     const fov = (camera as THREE.PerspectiveCamera).fov ?? 42
-    const radioBase = alto / (2 * relleno * Math.tan((fov * Math.PI) / 360))
+    const tanV = Math.tan((fov * Math.PI) / 360)
+    const aspecto = size.width / Math.max(1, size.height)
+
+    const distanciaPorAlto = alto / (2 * relleno * tanV)
+    const ancho = ANCHO_UNITARIO * escala
+    const distanciaPorAncho = ancho / (2 * LLENADO_ANCHO * tanV * aspecto)
+
+    const radioBase = Math.max(distanciaPorAlto, distanciaPorAncho)
 
     target.y = centro
 
