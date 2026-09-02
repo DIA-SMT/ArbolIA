@@ -122,6 +122,25 @@ async function main() {
     Boolean(errMeta),
     errMeta ? `rechazado: ${errMeta.code ?? errMeta.message}` : 'PASÓ',
   )
+  /*
+   * Y que el rechazo sea por el guardia, no porque la función no está.
+   *
+   * La comprobación de arriba aceptaba CUALQUIER error como buena señal. Si
+   * alguien borrara arbolia_set_goal, o cambiara el nombre del parámetro,
+   * PostgREST devolvería PGRST202 o PGRST203 —que también son errores— y
+   * esto habría informado "protegido" con el panel roto. Es la misma
+   * confusión que ya nos pasó una vez con una columna que no existía.
+   */
+  const codMeta = errMeta?.code ?? ''
+  check(
+    'y la función sigue existiendo, con su parámetro',
+    codMeta !== 'PGRST202' && codMeta !== 'PGRST203',
+    codMeta === 'PGRST202'
+      ? 'PGRST202: PostgREST no la encuentra'
+      : codMeta === 'PGRST203'
+        ? 'PGRST203: hay más de una versión'
+        : `rechazo legítimo: ${codMeta || errMeta?.message}`,
+  )
 
   console.log('\nLO QUE EL STAND SIGUE NECESITANDO\n')
 

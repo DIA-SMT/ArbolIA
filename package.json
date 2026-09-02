@@ -22,7 +22,8 @@
     "check:equipo": "node scripts/correr.mjs scripts/check-equipo.ts",
     "check:cadena": "node scripts/correr.mjs scripts/check-cadena.ts",
     "check:formato": "node scripts/correr.mjs scripts/check-formato.ts",
-    "check:informe": "node scripts/correr.mjs scripts/check-informe.ts"
+    "check:informe": "node scripts/correr.mjs scripts/check-informe.ts",
+    "check:meta": "node scripts/correr.mjs scripts/check-meta.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
