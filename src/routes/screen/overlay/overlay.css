@@ -1194,3 +1194,52 @@
   text-wrap: balance;
 }
 
+
+/* ------------------------------------------ Ideas en camino al árbol */
+
+/*
+ * El aviso de la cola de animación.
+ *
+ * Existe porque el número grande de "Ideas recibidas" es OPTIMISTA: suma en
+ * cuanto la idea entra a la cola, para que el vecino que acaba de enviar vea
+ * moverse la cifra antes de irse del stand. Pero su hoja tarda unos segundos
+ * más en brotar, y con mucho tránsito la cola planta el excedente sin
+ * animarlo. Esa diferencia entre lo que dice el número y lo que se ve en la
+ * copa no tenía ninguna explicación en pantalla.
+ *
+ * Discreto a propósito: es una nota al pie de la cifra, no un dato más. Si
+ * compitiera con el número grande, el aviso pasaría a ser el protagonista de
+ * la tarjeta y lo que importa es cuántas ideas hay.
+ */
+.panel__camino {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  margin: 0.15em 0 0;
+  font-size: calc(var(--u) * 0.92);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--smt-verde-claro, #25d366);
+}
+
+.panel__camino-punto {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+  animation: camino-pulso 1.6s ease-in-out infinite;
+}
+
+@keyframes camino-pulso {
+  0%, 100% { opacity: 0.35; transform: scale(0.82); }
+  50%      { opacity: 1;    transform: scale(1.1); }
+}
+
+/* Con movimiento reducido el punto queda quieto pero visible. */
+@media (prefers-reduced-motion: reduce) {
+  .panel__camino-punto {
+    animation: none;
+    opacity: 0.9;
+  }
+}

@@ -148,6 +148,7 @@ export default function ScreenRoute() {
         // el texto ofensivo a la vista en la columna derecha.
         recentIdeas={tree.textoSilenciado ? [] : recentIdeas}
         silenciado={tree.textoSilenciado}
+        enCamino={tree.queueLength}
       />
 
       <style>{`

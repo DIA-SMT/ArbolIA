@@ -18,6 +18,8 @@ interface Props {
   recentIdeas: Idea[]
   /** Silencio de emergencia activo: se avisa al operador. */
   silenciado: boolean
+  /** Ideas esperando su viaje al árbol. Ver la nota en el bloque hero. */
+  enCamino: number
 }
 
 const PHRASES = [
@@ -37,6 +39,7 @@ export default function ScreenOverlay({
   status,
   recentIdeas,
   silenciado,
+  enCamino,
 }: Props) {
   const phrase = useRotating(PHRASES, 9000)
   const progress = getGoalProgress(stats.ideas, goal)
@@ -106,6 +109,22 @@ export default function ScreenOverlay({
           <p className="panel__value panel__value--hero">
             <AnimatedNumber value={stats.ideas} />
           </p>
+          {/*
+            Las que todavía no llegaron al árbol.
+
+            El número grande YA las cuenta: el contador es optimista y suma en
+            cuanto la idea entra a la cola, para que el vecino que acaba de
+            enviar vea moverse la cifra. Pero su hoja tarda unos segundos más
+            en brotar, y con mucho tránsito la cola planta el excedente sin
+            animarlo. Sin este aviso, esa diferencia entre el número y lo que
+            se ve en la copa no tiene explicación para nadie.
+          */}
+          {enCamino > 0 && (
+            <p className="panel__camino">
+              <span className="panel__camino-punto" aria-hidden />
+              {enCamino === 1 ? "1 en camino" : enCamino + " en camino"}
+            </p>
+          )}
         </div>
 
         <div className="panel">
