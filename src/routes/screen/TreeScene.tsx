@@ -10,6 +10,7 @@ import FallingFruit from './FallingFruit'
 import Atmosphere from './Atmosphere'
 import CelebrationBurst from './CelebrationBurst'
 import FloatingLabels from './FloatingLabels'
+import Pajaro from './Pajaro'
 import Diagnostics, { type DiagInfo } from './Diagnostics'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
@@ -104,6 +105,14 @@ export default function TreeScene({
         />
         <Leaves ideas={propuestas} growth={growth} quality={quality} />
         <Journey idea={activeIdea} indexInCategory={indexInCategory} />
+
+        {/*
+          PROTOTIPO (rama animales): un pájaro de luz que cruza cada tanto.
+          Va dentro del grupo escalado para que acompañe al árbol en
+          cualquier etapa. En desarrollo se lo puede disparar a mano con
+          __arbolia_pajaro.volar().
+        */}
+        <Pajaro />
 
         {/* La crítica hace el camino inverso: cae y alimenta las raíces. */}
         <FallingFruit idea={criticaCayendo} visible={labelsVisible} />
