@@ -26,6 +26,14 @@ import { getGlowTexture } from './leafAssets'
  * pálidos y desaturados que ninguno pertenece a ninguna categoría: de cerca
  * se nota que son distintos entre sí, de lejos son todos "luz".
  *
+ * DOS TEMAS, DOS MATERIAS. En oscuro los pájaros son luz aditiva, la misma
+ * materia que el árbol sobre el fondo profundo. En claro el fondo es casi
+ * blanco y el aditivo deja de existir físicamente —sumar luz sobre blanco da
+ * blanco—, así que la bandada pasa a tinta: los mismos cuatro tonos pero en
+ * versión apagada, con mezcla normal y opacidad alta. La estela de glow, que
+ * es puro brillo aditivo, en claro directamente se apaga: un halo sobre
+ * blanco no es tenue, es invisible.
+ *
  * DÓNDE VUELAN. Alto y por afuera de la copa, nunca a través. El momento que
  * importa en esta pantalla es la hoja de un vecino brotando mientras esa
  * persona está parada mirando, y el movimiento es el imán de atención más
@@ -47,8 +55,11 @@ import { getGlowTexture } from './leafAssets'
 const TAMANO_BASE = 2.4
 
 interface ConfigPajaro {
-  /** Pálido y desaturado, lejos de los ocho colores de área. */
-  color: string
+  /**
+   * Un tono por tema, siempre lejos de los ocho colores de área. En oscuro
+   * pálido y desaturado; en claro la versión tinta del mismo tono.
+   */
+  color: { oscuro: string; claro: string }
   /** Multiplica TAMANO_BASE: la variedad de tamaños vende "bandada". */
   escala: number
   /** Lo que tarda en cruzar, en segundos. */
@@ -69,21 +80,41 @@ interface ConfigPajaro {
 }
 
 /*
- * La bandada. Los rangos de espera son deliberadamente distintos y sin
- * múltiplos comunes entre sí: con ventanas parejas los pájaros terminan
+ * La bandada. Las esperas bajaron ~30% respecto de la primera versión: en el
+ * stand pasaban minutos enteros sin un solo cruce y el detalle no existía.
+ * Los rangos siguen siendo deliberadamente distintos entre sí y corridos
+ * para no calzar en múltiplos: con ventanas parejas los pájaros terminan
  * sincronizándose por casualidad y quedan cruzando en pelotón. Así, los
  * encuentros de a dos existen pero son la excepción.
  */
 const BANDADA: ConfigPajaro[] = [
   // El celeste original, el "primero" de la bandada: es el que posa() congela.
-  { color: '#9fd8ff', escala: 1.0, cruceS: 7.5, aleteoHz: 2.8, esperaMin: 22, esperaMax: 38, esperaInicial: 6 },
-  // Lavanda pálido: nada que ver con el violeta saturado de área.
-  { color: '#c9baf5', escala: 0.85, cruceS: 6.2, aleteoHz: 3.1, esperaMin: 28, esperaMax: 47, esperaInicial: 15 },
-  // Dorado pálido, el más grande y el más lento: planea.
-  { color: '#ffe3a8', escala: 1.2, cruceS: 8.8, aleteoHz: 2.5, esperaMin: 33, esperaMax: 55, esperaInicial: 26 },
-  // Rosa muy lavado: el rosa de área es mucho más saturado.
-  { color: '#ffd2de', escala: 0.9, cruceS: 6.8, aleteoHz: 2.9, esperaMin: 26, esperaMax: 43, esperaInicial: 37 },
+  { color: { oscuro: '#9fd8ff', claro: '#4f9bd6' }, escala: 1.0, cruceS: 7.5, aleteoHz: 2.8, esperaMin: 15, esperaMax: 27, esperaInicial: 4 },
+  // Lavanda pálido / lavanda tinta: nada que ver con el violeta saturado de área.
+  { color: { oscuro: '#c9baf5', claro: '#8f7fd6' }, escala: 0.85, cruceS: 6.2, aleteoHz: 3.1, esperaMin: 20, esperaMax: 33, esperaInicial: 10 },
+  // Dorado pálido / ocre: el más grande y el más lento, planea.
+  { color: { oscuro: '#ffe3a8', claro: '#c08d3e' }, escala: 1.2, cruceS: 8.8, aleteoHz: 2.5, esperaMin: 23, esperaMax: 39, esperaInicial: 17 },
+  // Rosa muy lavado / rosa viejo: el rosa de área es mucho más saturado.
+  { color: { oscuro: '#ffd2de', claro: '#cf7d97' }, escala: 0.9, cruceS: 6.8, aleteoHz: 2.9, esperaMin: 18, esperaMax: 30, esperaInicial: 25 },
 ]
+
+/**
+ * Vestuario por tema, aparte del color que ya viene en BANDADA.
+ *
+ * En oscuro todo es luz aditiva y translúcida, como el árbol. En claro el
+ * aditivo no existe sobre un fondo casi blanco, así que se pasa a mezcla
+ * normal con opacidad más alta —tinta, no brillo— y la estela queda en cero.
+ * El fundido del useFrame multiplica estas bases, nunca constantes sueltas:
+ * si multiplicara un 0.78 fijo, en claro el pájaro entraría en fantasma.
+ */
+const APARIENCIA: Record<'claro' | 'oscuro', {
+  opacidad: number
+  opacidadEstela: number
+  blending: THREE.Blending
+}> = {
+  oscuro: { opacidad: 0.78, opacidadEstela: 0.35, blending: THREE.AdditiveBlending },
+  claro: { opacidad: 0.85, opacidadEstela: 0, blending: THREE.NormalBlending },
+}
 
 /**
  * Cuerpo: un dardo de cuatro caras, ocho triángulos.
@@ -147,6 +178,33 @@ function crearCola(): THREE.BufferGeometry {
 }
 
 /**
+ * Cabeza: una esfera chica adelantada sobre la punta del cuerpo.
+ *
+ * El dardo solo, de perfil, se leía como una flecha con alas; con una cabeza
+ * el ojo completa "pájaro" sin pensarlo. Va fija al grupo y no a las alas:
+ * si acompañara el aleteo, la silueta se rompería en cada batida.
+ */
+function crearCabeza(): THREE.BufferGeometry {
+  const geo = new THREE.SphereGeometry(0.05, 10, 8)
+  // Sobre la punta del cuerpo (el dardo llega a z = -0.13) y apenas arriba,
+  // hacia -Z que es adonde apunta el vuelo.
+  geo.translate(0, 0.02, -0.13)
+  return geo
+}
+
+/**
+ * Pico: un cono corto que remata la cabeza hacia -Z. Corto a propósito:
+ * más largo, de lejos, el pájaro se vuelve mosquito.
+ */
+function crearPico(): THREE.BufferGeometry {
+  const geo = new THREE.ConeGeometry(0.025, 0.06, 4)
+  // Igual que el cuerpo: el cono nace apuntando a +Y y se lo acuesta a -Z.
+  geo.rotateX(-Math.PI / 2)
+  geo.translate(0, 0.02, -0.2)
+  return geo
+}
+
+/**
  * Un recorrido nuevo: entra por un costado, cruza en arco y sale por el otro.
  *
  * Las alturas y profundidades salen al azar dentro de un rango que deja el
@@ -185,6 +243,8 @@ interface ControlesPajaro {
 /** Las geometrías se arman una sola vez en el padre y se comparten. */
 interface Geometrias {
   cuerpo: THREE.BufferGeometry
+  cabeza: THREE.BufferGeometry
+  pico: THREE.BufferGeometry
   alaIzq: THREE.BufferGeometry
   alaDer: THREE.BufferGeometry
   cola: THREE.BufferGeometry
@@ -196,46 +256,56 @@ function UnPajaro({
   geos,
   registro,
   indice,
+  tema,
 }: {
   config: ConfigPajaro
   geos: Geometrias
   registro: React.MutableRefObject<ControlesPajaro[]>
   indice: number
+  tema: 'claro' | 'oscuro'
 }) {
   const grupo = useRef<THREE.Group>(null)
   const alaIzq = useRef<THREE.Mesh>(null)
   const alaDer = useRef<THREE.Mesh>(null)
   const estela = useRef<THREE.Sprite>(null)
 
+  // El vestuario del tema activo: bases de opacidad y modo de mezcla.
+  const apariencia = APARIENCIA[tema]
+
   // Un material por pájaro: son cuatro, y cada uno anima su propia opacidad
   // en el fundido, así que compartirlo acoplaría los fundidos entre sí.
   const material = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: new THREE.Color(config.color),
+        color: new THREE.Color(config.color[tema]),
         transparent: true,
-        opacity: 0.78,
-        blending: THREE.AdditiveBlending,
+        opacity: APARIENCIA[tema].opacidad,
+        blending: APARIENCIA[tema].blending,
         depthWrite: false,
         side: THREE.DoubleSide,
-        // Sin mapeo de tonos: así el bloom lo agarra igual que al árbol.
+        // Sin mapeo de tonos: así el bloom lo agarra igual que al árbol, y
+        // en claro la tinta queda del color exacto que se eligió.
         toneMapped: false,
       }),
-    [config.color],
+    [config.color, tema],
   )
 
+  /*
+   * La estela queda aditiva en los dos temas: en claro su opacidad base es 0
+   * y el sprite además se oculta, así que el modo de mezcla no importa.
+   */
   const materialEstela = useMemo(
     () =>
       new THREE.SpriteMaterial({
         map: geos.glow,
-        color: new THREE.Color(config.color),
+        color: new THREE.Color(config.color[tema]),
         transparent: true,
-        opacity: 0.35,
+        opacity: APARIENCIA[tema].opacidadEstela,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         toneMapped: false,
       }),
-    [geos.glow, config.color],
+    [geos.glow, config.color, tema],
   )
 
   /** null = escondido, esperando el próximo turno. */
@@ -340,8 +410,10 @@ function UnPajaro({
     const distCam = punto.distanceTo(estado.camera.position)
     const cerca = Math.min(1, Math.max(0, (distCam - 3.2) / 2.8))
     const opacidad = Math.min(1, borde) * cerca
-    material.opacity = 0.78 * opacidad
-    materialEstela.opacity = 0.35 * opacidad
+    // Las bases salen del tema activo: el mismo fundido sirve para la luz
+    // de oscuro y para la tinta de claro (donde la estela base ya es 0).
+    material.opacity = apariencia.opacidad * opacidad
+    materialEstela.opacity = apariencia.opacidadEstela * opacidad
 
     // Aleteo. Las dos alas suben y bajan juntas.
     const angulo = Math.sin(reloj.current * config.aleteoHz * Math.PI * 2) * 0.52
@@ -358,18 +430,29 @@ function UnPajaro({
   return (
     <group ref={grupo} name={`pajaro-${indice}`} scale={TAMANO_BASE * config.escala} visible={false}>
       <mesh geometry={geos.cuerpo} material={material} />
+      {/* Cabeza y pico fijos al grupo, no a las alas: el aleteo no los mueve. */}
+      <mesh geometry={geos.cabeza} material={material} />
+      <mesh geometry={geos.pico} material={material} />
       <mesh ref={alaIzq} geometry={geos.alaIzq} material={material} />
       <mesh ref={alaDer} geometry={geos.alaDer} material={material} />
       <mesh geometry={geos.cola} material={material} />
-      <sprite ref={estela} material={materialEstela} scale={0.5} />
+      {/* En claro la estela ni se dibuja: glow aditivo sobre blanco no existe. */}
+      <sprite ref={estela} material={materialEstela} scale={0.5} visible={tema === 'oscuro'} />
     </group>
   )
 }
 
-export default function Pajaro() {
+/**
+ * El tema llega por prop desde TreeScene: acá no se lee el DOM ni se usa
+ * useTema. El default 'oscuro' mantiene el aspecto histórico si nadie pasa
+ * nada.
+ */
+export default function Pajaro({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) {
   const geos = useMemo<Geometrias>(
     () => ({
       cuerpo: crearCuerpo(),
+      cabeza: crearCabeza(),
+      pico: crearPico(),
       alaIzq: crearAla(1),
       alaDer: crearAla(-1),
       cola: crearCola(),
@@ -429,7 +512,7 @@ export default function Pajaro() {
   return (
     <>
       {BANDADA.map((config, i) => (
-        <UnPajaro key={config.color} config={config} geos={geos} registro={registro} indice={i} />
+        <UnPajaro key={config.color.oscuro} config={config} geos={geos} registro={registro} indice={i} tema={tema} />
       ))}
     </>
   )

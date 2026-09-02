@@ -115,10 +115,10 @@ export default function TreeScene({
           cualquier etapa. En desarrollo se lo puede disparar a mano con
           __arbolia_pajaro.volar().
         */}
-        <Pajaro />
-        <Ardilla />
-        <Perrito />
-        <Sol />
+        <Pajaro tema={tema} />
+        <Ardilla tema={tema} />
+        <Perrito tema={tema} />
+        <Sol tema={tema} />
 
         {/* La crítica hace el camino inverso: cae y alimenta las raíces. */}
         <FallingFruit idea={criticaCayendo} visible={labelsVisible} />

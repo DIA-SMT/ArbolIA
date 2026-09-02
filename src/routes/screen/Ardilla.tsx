@@ -28,13 +28,28 @@ import { trunkRadius } from './tubeBuilder'
  * va apoyada en la corteza de verdad: la distancia al eje sale de
  * trunkRadius(t), la misma función con la que se construyó el tubo del
  * tronco. Sin eso flota al subir o se hunde en la madera.
+ *
+ * DOS TEMAS: en oscuro la ardilla es luz aditiva blanco-cálida, como todo
+ * lo vivo de la escena. En claro el fondo es casi blanco y el aditivo
+ * desaparece físicamente (sumar luz sobre blanco da blanco), así que ahí
+ * se vuelve TINTA: castaño apagado con blending normal, como dibujada a
+ * lápiz sobre papel. El vestuario sale de APARIENCIA[tema]; la anatomía y
+ * el viaje son exactamente los mismos en los dos.
  */
 
-const ESPERA_MIN = 26
-const ESPERA_MAX = 48
+const ESPERA_MIN = 16
+const ESPERA_MAX = 34
 
-/** Blanco cálido. Ninguna de las ocho áreas usa nada parecido. */
-const COLOR = '#ffc890'
+/**
+ * Vestuario por tema. Regla inviolable: los ocho colores de área del árbol
+ * significan "de qué habla una idea", y la ardilla no puede confundirse con
+ * ninguno. Por eso en oscuro va un blanco cálido pálido y en claro un
+ * castaño tinta desaturado: ningún área usa nada parecido.
+ */
+const APARIENCIA = {
+  oscuro: { color: '#ffc890', opacidad: 0.42, blending: THREE.AdditiveBlending },
+  claro: { color: '#8a5a3c', opacidad: 0.85, blending: THREE.NormalBlending },
+} as const
 
 /*
  * A 2.4 parecía un oso abrazando el tronco: medía un tercio del árbol.
@@ -146,15 +161,34 @@ function crearCabeza(): THREE.BufferGeometry {
  */
 function crearParDePatas(traseras: boolean): THREE.BufferGeometry {
   const geos: THREE.BufferGeometry[] = []
+  /*
+   * Las delanteras son más cortas: en una ardilla real los brazos miden
+   * bastante menos que las piernas, y ese desbalance es parte de la
+   * silueta. Los pies de los dos pares apoyan a la misma altura (-0.12),
+   * así que el cilindro se cuelga desde abajo, no desde la cadera.
+   */
+  const largo = traseras ? 0.12 : 0.09
   for (const x of [-0.05, 0.05]) {
     const g = new THREE.CylinderGeometry(
       traseras ? 0.02 : 0.015,
       traseras ? 0.024 : 0.018,
-      0.12,
+      largo,
       5,
     )
-    g.translate(x, -0.06, 0)
+    g.translate(x, -0.12 + largo / 2, 0)
     geos.push(g)
+    if (traseras) {
+      /*
+       * MUSLO: esfera achatada pegada a la cadera, donde nace la pata. Es
+       * la marca visual de la ardilla sentada o saltando; sin él las patas
+       * son palitos de insecto. Va en esta misma malla a propósito: rota
+       * CON el par trasero en el galope, como el muslo de verdad.
+       */
+      const muslo = new THREE.SphereGeometry(0.045, 7, 5)
+      muslo.scale(0.7, 1, 1.2)
+      muslo.translate(x, -0.02, 0)
+      geos.push(muslo)
+    }
   }
   return fusionar(geos)
 }
@@ -205,7 +239,7 @@ interface Viaje {
   p: number
 }
 
-export default function Ardilla() {
+export default function Ardilla({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) {
   const grupo = useRef<THREE.Group>(null)
   const cuerpo = useRef<THREE.Mesh>(null)
   const cola = useRef<THREE.Mesh>(null)
@@ -220,21 +254,23 @@ export default function Ardilla() {
   const patasDelGeo = useMemo(() => crearParDePatas(false), [])
   const patasTrasGeo = useMemo(() => crearParDePatas(true), [])
 
-  const material = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: new THREE.Color(COLOR),
-        transparent: true,
-        opacity: 0.42,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    [],
-  )
+  const material = useMemo(() => {
+    const a = APARIENCIA[tema]
+    return new THREE.MeshBasicMaterial({
+      color: new THREE.Color(a.color),
+      transparent: true,
+      opacity: a.opacidad,
+      blending: a.blending,
+      // depthWrite apagado en los dos temas: la ardilla no debe taparle
+      // el z-buffer a las hojas que tiene detrás.
+      depthWrite: false,
+      toneMapped: false,
+      side: THREE.FrontSide,
+    })
+  }, [tema])
 
   const viaje = useRef<Viaje | null>(null)
-  const espera = useRef(10)
+  const espera = useRef(7)
   const reloj = useRef(0)
   const congelado = useRef(false)
 

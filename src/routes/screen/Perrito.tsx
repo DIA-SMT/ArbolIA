@@ -15,10 +15,13 @@ import { trunkRadius } from './tubeBuilder'
  *
  * Está hecho con la misma disciplina que los otros dos:
  *
- *  · de luz, no de textura: en esta pantalla todo lo que brilla es de la
- *    misma materia;
- *  · sin ningún color de área: va en un dorado pálido desaturado, y el
- *    chorrito apenas más dorado, que es todo el chiste que hace falta;
+ *  · de luz en oscuro, de tinta en claro: sobre el fondo nocturno es brillo
+ *    aditivo como todo lo vivo de la escena, pero sobre el fondo casi blanco
+ *    del tema claro el aditivo no existe físicamente (sumar luz sobre blanco
+ *    da blanco), así que ahí pasa a blending normal con opacidad alta;
+ *  · sin ningún color de área: dorado pálido desaturado en oscuro, tan tinta
+ *    apagado en claro, y el chorrito amarillo en los dos temas, que es todo
+ *    el chiste que hace falta;
  *  · pasa por el lado que mira la cámara, como la ardilla, así el momento
  *    no ocurre en la cara oculta del tronco.
  *
@@ -30,11 +33,38 @@ import { trunkRadius } from './tubeBuilder'
  *   seva      trota hacia el otro lado y desaparece
  */
 
-const ESPERA_MIN = 45
-const ESPERA_MAX = 80
+const ESPERA_MIN = 30
+const ESPERA_MAX = 60
 
-/** Dorado pálido y desaturado: lejos del amarillo saturado de Tecnología. */
-const COLOR = '#f0d9a8'
+/**
+ * Vestuario por tema. Ningún tono se acerca a los 8 colores de área: esos
+ * significan "de qué habla una idea" y el perrito no habla de nada.
+ *
+ *  · oscuro: dorado pálido y desaturado (lejos del amarillo saturado de
+ *    Tecnología), aditivo y tenue, como el resto de la fauna.
+ *  · claro: tan tinta apagado con blending normal y opacidad alta, porque
+ *    el aditivo sobre el fondo casi blanco es invisible.
+ *
+ * El chorrito es amarillo en los dos temas —ese chiste no se negocia—; en
+ * claro solo cambia a blending normal para que exista sobre blanco. Las
+ * opacidades viven acá y no en el bucle, así los fundidos por cuadro salen
+ * de la base del tema activo.
+ */
+const APARIENCIA = {
+  oscuro: {
+    cuerpo: '#f0d9a8',
+    cuerpoOpacidad: 0.4,
+    pisOpacidad: 0.8,
+    blending: THREE.AdditiveBlending,
+  },
+  claro: {
+    cuerpo: '#8f7355',
+    cuerpoOpacidad: 0.85,
+    pisOpacidad: 0.9,
+    blending: THREE.NormalBlending,
+  },
+} as const
+
 const COLOR_PIS = '#ffe000'
 
 const TAMANO = 1.6
@@ -69,20 +99,30 @@ function crearCuerpo(): THREE.BufferGeometry {
   return geo
 }
 
-/** Cabeza con hocico: dos esferas fusionadas leen como perro enseguida. */
+/**
+ * Cabeza con hocico, orejas caídas y cuello, todo fusionado en una sola
+ * malla: la silueta gana sin sumar draw calls.
+ */
 function crearCabeza(): THREE.BufferGeometry {
   const cabeza = new THREE.SphereGeometry(0.075, 7, 5)
   cabeza.translate(0, 0.09, -0.24)
-  const hocico = new THREE.SphereGeometry(0.042, 6, 4)
-  hocico.scale(0.9, 0.75, 1.5)
-  hocico.translate(0, 0.06, -0.33)
-  // Orejas caídas: dos gotitas a los costados.
-  const orejaI = new THREE.SphereGeometry(0.028, 5, 4)
-  orejaI.scale(0.6, 1.4, 0.8)
-  orejaI.translate(-0.07, 0.11, -0.22)
+  // Hocico: esfera escalada a ~0.05 de ancho, 0.04 de alto y 0.09 de largo,
+  // adelante y un poco abajo del centro de la cabeza.
+  const hocico = new THREE.SphereGeometry(0.03, 6, 4)
+  hocico.scale(0.83, 0.67, 1.5)
+  hocico.translate(0, 0.065, -0.31)
+  // Orejas caídas: esferas chatas colgando a los costados-arriba.
+  const orejaI = new THREE.SphereGeometry(0.022, 5, 4)
+  orejaI.scale(1, 1.4, 0.5)
+  orejaI.translate(-0.068, 0.1, -0.23)
   const orejaD = orejaI.clone()
-  orejaD.translate(0.14, 0, 0)
-  return fusionar([cabeza, hocico, orejaI, orejaD])
+  orejaD.translate(0.136, 0, 0)
+  // Cuello: cilindro corto inclinado uniendo el pecho con la cabeza, porque
+  // sin él la cabeza flotaba despegada del cuerpo.
+  const cuello = new THREE.CylinderGeometry(0.032, 0.04, 0.13, 6)
+  cuello.rotateX(-0.85)
+  cuello.translate(0, 0.05, -0.19)
+  return fusionar([cabeza, hocico, orejaI, orejaD, cuello])
 }
 
 /**
@@ -100,12 +140,33 @@ function crearPata(): THREE.BufferGeometry {
   return g
 }
 
-/** Cola finita hacia arriba, para menearla. */
+/**
+ * Pata trasera: el mismo cilindro más un muslo —esfera achatada arriba, el
+ * mismo truco que la ardilla—. Va fusionado adentro de la malla de la pata
+ * para no sumar draw calls; la pata sigue siendo una malla separada con su
+ * ref, así trota y se levanta igual que antes.
+ */
+function crearPataTrasera(): THREE.BufferGeometry {
+  const pata = crearPata()
+  const muslo = new THREE.SphereGeometry(0.036, 6, 5)
+  muslo.scale(0.7, 1.15, 1.2)
+  muslo.translate(0, -0.035, 0)
+  return fusionar([pata, muslo])
+}
+
+/**
+ * Cola con curva: un tubo corto sobre una curva de 3 puntos que sube con una
+ * leve comba, en vez del cilindro recto que parecía una antena. El pivote
+ * sigue en la base (el origen de la malla), así el meneo por rotation del
+ * bucle no cambia.
+ */
 function crearColita(): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(0.012, 0.02, 0.16, 5)
-  g.translate(0, 0.07, 0)
-  g.rotateX(0.7)
-  return g
+  const curva = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0.05, 0.06),
+    new THREE.Vector3(0, 0.13, 0.09),
+  ])
+  return new THREE.TubeGeometry(curva, 8, 0.014, 5, false)
 }
 
 /**
@@ -150,7 +211,7 @@ interface Paseo {
   p: number
 }
 
-export default function Perrito() {
+export default function Perrito({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) {
   const grupo = useRef<THREE.Group>(null)
   const pataDI = useRef<THREE.Mesh>(null)
   const pataDD = useRef<THREE.Mesh>(null)
@@ -163,37 +224,37 @@ export default function Perrito() {
   const cuerpoGeo = useMemo(crearCuerpo, [])
   const cabezaGeo = useMemo(crearCabeza, [])
   const pataGeo = useMemo(crearPata, [])
+  const pataTraseraGeo = useMemo(crearPataTrasera, [])
   const colitaGeo = useMemo(crearColita, [])
   const chorritoGeo = useMemo(crearChorrito, [])
 
-  const material = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: new THREE.Color(COLOR),
-        transparent: true,
-        opacity: 0.4,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    [],
-  )
+  const material = useMemo(() => {
+    const ap = APARIENCIA[tema]
+    return new THREE.MeshBasicMaterial({
+      color: new THREE.Color(ap.cuerpo),
+      transparent: true,
+      opacity: ap.cuerpoOpacidad,
+      blending: ap.blending,
+      depthWrite: false,
+      toneMapped: false,
+    })
+  }, [tema])
 
-  const materialPis = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: new THREE.Color(COLOR_PIS),
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    [],
-  )
+  const materialPis = useMemo(() => {
+    const ap = APARIENCIA[tema]
+    return new THREE.MeshBasicMaterial({
+      color: new THREE.Color(COLOR_PIS),
+      transparent: true,
+      // Arranca cortado: la aparición y el corte los maneja el bucle.
+      opacity: 0,
+      blending: ap.blending,
+      depthWrite: false,
+      toneMapped: false,
+    })
+  }, [tema])
 
   const paseo = useRef<Paseo | null>(null)
-  const espera = useRef(20)
+  const espera = useRef(14)
   const reloj = useRef(0)
   const congelado = useRef(false)
 
@@ -323,7 +384,9 @@ export default function Perrito() {
         pataArriba = Math.min(subida, bajada)
         const chorro = Math.min(1, Math.max(0, (local - 0.18) / 0.1)) *
           Math.min(1, Math.max(0, (0.92 - local) / 0.1))
-        pisOpacidad = chorro * 0.8
+        // La base del fundido sale de la apariencia del tema activo: en
+        // claro necesita más opacidad para existir sobre el fondo blanco.
+        pisOpacidad = chorro * APARIENCIA[tema].pisOpacidad
       }
     }
 
@@ -375,9 +438,10 @@ export default function Perrito() {
       <mesh geometry={cabezaGeo} material={material} />
       <mesh ref={pataDI} geometry={pataGeo} material={material} position={[-0.06, -0.06, -0.16]} />
       <mesh ref={pataDD} geometry={pataGeo} material={material} position={[0.06, -0.06, -0.16]} />
-      <mesh ref={pataTI} geometry={pataGeo} material={material} position={[-0.06, -0.06, 0.16]} />
+      {/* Las traseras llevan muslo fusionado; siguen siendo mallas separadas. */}
+      <mesh ref={pataTI} geometry={pataTraseraGeo} material={material} position={[-0.06, -0.06, 0.16]} />
       {/* La trasera derecha es la que levanta: del lado del tronco. */}
-      <mesh ref={pataTD} geometry={pataGeo} material={material} position={[0.06, -0.06, 0.16]} />
+      <mesh ref={pataTD} geometry={pataTraseraGeo} material={material} position={[0.06, -0.06, 0.16]} />
       <mesh ref={colita} geometry={colitaGeo} material={material} position={[0, 0.06, 0.2]} />
       <mesh ref={chorrito} geometry={chorritoGeo} material={materialPis} position={[0.04, 0, 0]} visible={false} />
     </group>
