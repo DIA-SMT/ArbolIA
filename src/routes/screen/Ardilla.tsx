@@ -1,64 +1,100 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { getTreeModel, type Twig } from './treeGeometry'
+import { getTreeModel } from './treeGeometry'
+import { trunkRadius } from './tubeBuilder'
 
 /**
- * Una ardilla de luz que corre por una rama cada tanto.
+ * Una ardilla de luz que llega por el piso, TREPA EL TRONCO, mira desde
+ * arriba y baja de cabeza antes de irse.
  *
- * PROTOTIPO, rama `animales`. Es bastante más difícil que el pájaro y vale
- * decir por qué: un pájaro cruza por aire libre, así que su recorrido es una
- * curva inventada. Una ardilla tiene que ir PEGADA A UNA RAMA, y si la rama
- * no es una rama de verdad se nota enseguida.
+ * PROTOTIPO, rama `animales`. La primera versión corría por una rama de la
+ * copa y el pedido fue claro: tiene que verse MUY sensiblemente subir desde
+ * un costado y bajar del árbol. Eso cambia el escenario: el tronco es la
+ * pieza más central y más gruesa de la pantalla, así que un animalito
+ * trepándolo se ve siempre, mientras que en la copa se perdía entre el
+ * follaje.
  *
- * Acá se puede porque el árbol guarda cada ramita como una curva
- * (CatmullRomCurve3, ver treeGeometry). La ardilla toma una al azar y la
- * recorre con getPointAt y getTangentAt, separada del eje por el radio de esa
- * ramita: va sobre la corteza, no atravesándola.
+ * El viaje completo, unos diecisiete segundos:
  *
- * LO QUE LA HACE LEERSE COMO ARDILLA ES LA COLA. A la distancia de un LED el
- * cuerpo es una mancha; lo que el ojo reconoce es esa cola gruesa y curvada
- * más larga que el animal. Por eso la cola tiene más geometría que todo el
- * resto junto.
+ *   llega   corre por el piso desde un costado hasta la base
+ *   sube    trepa el tronco a tirones, pegada a la corteza
+ *   pausa   se detiene arriba y mira alrededor
+ *   baja    desciende DE CABEZA, que es como bajan las ardillas reales
+ *   seva    corre por el piso hacia el otro lado y desaparece
  *
- * Y CORRE A TIRONES. Una ardilla no se desplaza parejo: arranca, frena, mira,
- * vuelve a arrancar. Moverla a velocidad constante la convierte en un juguete
- * sobre un riel. La velocidad va modulada y el cuerpo cabecea con cada
- * arranque.
+ * Dos detalles que hacen que se lea:
  *
- * Comparte el idioma del pájaro: hecha de luz, sin ningún color de área —los
- * ocho colores del árbol significan de qué habla cada idea— y en un tono
- * cálido para distinguirse del pájaro, que es frío.
+ * TREPA POR EL LADO QUE MIRA LA CÁMARA. El azimut de la subida se elige al
+ * arrancar según dónde está la cámara, así el viaje ocurre en la cara
+ * visible del tronco y no en la de atrás. La cámara orbita despacio, así que
+ * durante el viaje se corre un poco, pero nunca lo suficiente como para
+ * esconderla.
+ *
+ * VA APOYADA EN LA CORTEZA DE VERDAD. La distancia al eje del tronco sale de
+ * trunkRadius(t), la misma función con la que se construyó el tubo del
+ * tronco: más gorda abajo, más fina arriba. Sin eso la ardilla flota al
+ * subir o se hunde en la madera.
  */
 
-const ESPERA_MIN = 30
-const ESPERA_MAX = 55
-
-/** Lo que tarda en recorrer la rama. */
-const CARRERA_S = 9
+const ESPERA_MIN = 26
+const ESPERA_MAX = 48
 
 /** Blanco cálido. Ninguna de las ocho áreas usa nada parecido. */
 const COLOR = '#ffdfc0'
 
-const TAMANO = 2.4
+/*
+ * A 2.4 parecía un oso abrazando el tronco: medía un tercio del árbol.
+ * Una ardilla real sería invisible; esto es el punto medio entre que se
+ * lea el animal y que las proporciones no den risa.
+ */
+const TAMANO = 1.35
 
-const UP = new THREE.Vector3(0, 1, 0)
+/** Hasta dónde llegan las patas por debajo del origen, en unidades locales. */
+const PIES = 0.132
+
+/** Altura del origen del grupo sobre la superficie de apoyo (las patas). */
+const APOYO = PIES * TAMANO + 0.02
+
+/** Hasta qué punto del tronco sube como mínimo y máximo (0..1). */
+const SUBIDA_MIN = 0.4
+const SUBIDA_MAX = 0.62
+
+const FASES: Array<[string, number]> = [
+  ['llega', 2.6],
+  ['sube', 5.6],
+  ['pausa', 1.8],
+  ['baja', 4.0],
+  ['seva', 2.6],
+]
+const DURACION_TOTAL = FASES.reduce((s, [, d]) => s + d, 0)
+
+/** En qué fase cae el progreso global p (0..1) y cuánto lleva de ella. */
+function faseDe(p: number): { nombre: string; local: number } {
+  let acumulado = 0
+  for (const [nombre, dur] of FASES) {
+    const fin = acumulado + dur / DURACION_TOTAL
+    if (p < fin) return { nombre, local: (p - acumulado) / (dur / DURACION_TOTAL) }
+    acumulado = fin
+  }
+  return { nombre: 'seva', local: 1 }
+}
 
 /**
- * Cuerpo: un elipsoide corto, achatado.
- *
- * Se parte de una esfera de pocos segmentos y se la estira: sale un bulto
- * convincente con 80 triángulos, y a esta distancia no hace falta más.
+ * Avance a tirones pero monótono: arranca, frena, vuelve a arrancar sin
+ * retroceder nunca. La derivada se mantiene positiva porque la amplitud del
+ * seno es menor que la pendiente.
  */
+function aTirones(s: number, tirones: number): number {
+  return s - Math.sin(s * tirones * Math.PI * 2) / (tirones * Math.PI * 2.6)
+}
+
 function crearCuerpo(): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(0.09, 8, 6)
-  // Largo y bajo. La primera versión era casi una pelota y, al lado de la
-  // cola, desaparecía: el conjunto se leía como un gancho, no como un animal.
   geo.scale(1, 0.82, 2.6)
   return geo
 }
 
-/** Cabeza: grande respecto del cuerpo, como la tiene una ardilla. */
 function crearCabeza(): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(0.068, 7, 5)
   geo.scale(1, 1.05, 1.1)
@@ -66,13 +102,6 @@ function crearCabeza(): THREE.BufferGeometry {
   return geo
 }
 
-/**
- * Dos patas apenas insinuadas.
- *
- * A esta distancia no se ven como patas, pero apoyan el cuerpo contra la
- * rama. Sin ellas la ardilla flota, y flotando cualquier bulto se lee como
- * un adorno colgado en vez de un animal parado.
- */
 function crearPatas(): THREE.BufferGeometry {
   const geos: THREE.BufferGeometry[] = []
   for (const z of [-0.14, 0.12]) {
@@ -83,7 +112,6 @@ function crearPatas(): THREE.BufferGeometry {
       geos.push(g)
     }
   }
-  // Se fusionan a mano para que las cuatro sean una sola llamada de dibujo.
   const total = geos.reduce((n, g) => n + (g.attributes.position as THREE.BufferAttribute).count, 0)
   const pos = new Float32Array(total * 3)
   const idx: number[] = []
@@ -102,20 +130,8 @@ function crearPatas(): THREE.BufferGeometry {
   return geo
 }
 
-/**
- * Cola: un tubo que sube por detrás y se curva sobre el lomo, afinándose.
- *
- * TubeGeometry da radio constante, así que después se afinan los anillos a
- * mano: cada anillo se acerca a su punto de la curva según cuán lejos esté
- * de la raíz. Sin ese afinado la cola parece una manguera.
- */
+/** Cola: sube por detrás y acompaña el lomo sin taparlo. */
 function crearCola(): THREE.BufferGeometry {
-  /*
-   * Sube por detrás y se inclina hacia adelante SIN pasar por encima de la
-   * cabeza. La primera versión terminaba en z negativo, o sea adelante del
-   * animal, y eso cerraba el gancho: el conjunto se leía como un signo de
-   * pregunta. La cola de una ardilla sube y acompaña el lomo, no lo tapa.
-   */
   const curva = new THREE.CatmullRomCurve3([
     new THREE.Vector3(0, 0.0, 0.2),
     new THREE.Vector3(0, 0.13, 0.32),
@@ -123,27 +139,21 @@ function crearCola(): THREE.BufferGeometry {
     new THREE.Vector3(0, 0.42, 0.27),
     new THREE.Vector3(0, 0.48, 0.15),
   ])
-
   const SEG = 14
   const ANILLO = 6
-  // Más fina que antes: 0.075 la dejaba más gruesa que el propio cuerpo.
   const geo = new THREE.TubeGeometry(curva, SEG, 0.05, ANILLO, false)
-
-  // Afinado: el anillo i se contrae hacia el eje de la curva.
   const pos = geo.attributes.position as THREE.BufferAttribute
   const centro = new THREE.Vector3()
   const v = new THREE.Vector3()
   for (let i = 0; i <= SEG; i++) {
     const t = i / SEG
-    // Gorda en el medio, fina en los dos extremos: así nace del lomo y
-    // termina en punta.
     const grosor = 0.42 + Math.sin(t * Math.PI) * 0.75
     curva.getPointAt(t, centro)
     for (let j = 0; j <= ANILLO; j++) {
-      const idx = i * (ANILLO + 1) + j
-      v.fromBufferAttribute(pos, idx)
+      const k = i * (ANILLO + 1) + j
+      v.fromBufferAttribute(pos, k)
       v.sub(centro).multiplyScalar(grosor).add(centro)
-      pos.setXYZ(idx, v.x, v.y, v.z)
+      pos.setXYZ(k, v.x, v.y, v.z)
     }
   }
   pos.needsUpdate = true
@@ -151,34 +161,32 @@ function crearCola(): THREE.BufferGeometry {
   return geo
 }
 
-/** Las ramitas madre: nacen del tronco y son las más largas. */
-function ramitasCandidatas(): Twig[] {
-  const model = getTreeModel()
-  const madres: Twig[] = []
-  for (const rama of model.branches) {
-    for (const twig of rama.twigs) {
-      if (twig.parent === -1) madres.push(twig)
-    }
-  }
-  return madres
+interface Viaje {
+  /** Dirección radial del lado del tronco por el que trepa. */
+  radial: THREE.Vector3
+  llegada: THREE.CatmullRomCurve3
+  salida: THREE.CatmullRomCurve3
+  alturaMax: number
+  p: number
 }
 
 export default function Ardilla() {
   const grupo = useRef<THREE.Group>(null)
   const cola = useRef<THREE.Mesh>(null)
+  const { camera } = useThree()
 
+  const model = useMemo(() => getTreeModel(), [])
   const cuerpoGeo = useMemo(crearCuerpo, [])
   const cabezaGeo = useMemo(crearCabeza, [])
   const colaGeo = useMemo(crearCola, [])
   const patasGeo = useMemo(crearPatas, [])
-  const ramitas = useMemo(ramitasCandidatas, [])
 
   const material = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(COLOR),
         transparent: true,
-        opacity: 0.62,
+        opacity: 0.5,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -187,43 +195,83 @@ export default function Ardilla() {
     [],
   )
 
-  const carrera = useRef<{ twig: Twig; t: number; sentido: 1 | -1 } | null>(null)
-  const espera = useRef(12)
+  const viaje = useRef<Viaje | null>(null)
+  const espera = useRef(10)
   const reloj = useRef(0)
   const congelado = useRef(false)
 
+  // Temporales reutilizados: nada de esto puede crear objetos por cuadro.
+  const punto = useMemo(() => new THREE.Vector3(), [])
+  const tangente = useMemo(() => new THREE.Vector3(), [])
+  const arriba = useMemo(() => new THREE.Vector3(), [])
+  const mira = useMemo(() => new THREE.Vector3(), [])
+  const matriz = useMemo(() => new THREE.Matrix4(), [])
+  const rotObjetivo = useMemo(() => new THREE.Quaternion(), [])
+
+  /** Punto de contacto con el tronco a la altura t, del lado elegido. */
+  const puntoDeTronco = (radial: THREE.Vector3, t: number, destino: THREE.Vector3) => {
+    model.trunk.getPointAt(t, destino)
+    destino.addScaledVector(radial, trunkRadius(t) + APOYO)
+    return destino
+  }
+
   const arrancar = () => {
-    if (ramitas.length === 0) return
-    const twig = ramitas[Math.floor(Math.random() * ramitas.length)]
-    const sentido = Math.random() < 0.65 ? 1 : -1
-    carrera.current = { twig, t: sentido === 1 ? 0.08 : 0.92, sentido }
+    /*
+     * El lado visible: el azimut de la cámara. Como el grupo del árbol no
+     * rota y su escala es uniforme, el azimut en mundo y en local coinciden.
+     */
+    const az = Math.atan2(camera.position.x, camera.position.z)
+    const radial = new THREE.Vector3(Math.sin(az), 0, Math.cos(az))
+
+    const lado = Math.random() < 0.5 ? 1 : -1
+    const azEntrada = az + lado * (1.15 + Math.random() * 0.35)
+    const azSalida = az - lado * (1.0 + Math.random() * 0.4)
+
+    const base = puntoDeTronco(radial, 0.02, new THREE.Vector3())
+    base.y = APOYO * 0.55
+
+    const entrada = new THREE.Vector3(Math.sin(azEntrada), 0, Math.cos(azEntrada))
+      .multiplyScalar(3.9)
+      .setY(APOYO * 0.55)
+    const salida = new THREE.Vector3(Math.sin(azSalida), 0, Math.cos(azSalida))
+      .multiplyScalar(4.2)
+      .setY(APOYO * 0.55)
+
+    const medioLlegada = entrada.clone().lerp(base, 0.55).setLength(entrada.length() * 0.5)
+    medioLlegada.y = APOYO * 0.55
+    const medioSalida = base.clone().lerp(salida, 0.5).setLength(salida.length() * 0.55)
+    medioSalida.y = APOYO * 0.55
+
+    viaje.current = {
+      radial,
+      llegada: new THREE.CatmullRomCurve3([entrada, medioLlegada, base]),
+      salida: new THREE.CatmullRomCurve3([base, medioSalida, salida]),
+      alturaMax: SUBIDA_MIN + Math.random() * (SUBIDA_MAX - SUBIDA_MIN),
+      p: 0,
+    }
   }
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
     const api = {
       correr: arrancar,
-      posar: (t = 0.5) => {
-        if (ramitas.length === 0) return
-        const twig = ramitas[Math.floor(Math.random() * ramitas.length)]
-        carrera.current = { twig, t: Math.min(0.97, Math.max(0.03, t)), sentido: 1 }
+      /** Congela el viaje en un progreso 0..1 (0.35 ≈ mitad de la subida). */
+      posar: (p = 0.35) => {
+        arrancar()
+        if (viaje.current) viaje.current.p = Math.min(0.99, Math.max(0, p))
         congelado.current = true
       },
       soltar: () => {
         congelado.current = false
       },
-      ramitas: ramitas.length,
+      fases: FASES.map(([n, d]) => `${n} ${d}s`),
     }
     ;(window as unknown as { __arbolia_ardilla?: typeof api }).__arbolia_ardilla = api
     return () => {
       delete (window as unknown as { __arbolia_ardilla?: typeof api }).__arbolia_ardilla
     }
-  }, [ramitas])
-
-  const normal = useMemo(() => new THREE.Vector3(), [])
-  const punto = useMemo(() => new THREE.Vector3(), [])
-  const tangente = useMemo(() => new THREE.Vector3(), [])
-  const mira = useMemo(() => new THREE.Vector3(), [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useFrame((_, delta) => {
     const g = grupo.current
@@ -232,62 +280,79 @@ export default function Ardilla() {
     const paso = Math.min(delta, 0.05)
     reloj.current += paso
 
-    if (!carrera.current) {
+    if (!viaje.current) {
       g.visible = false
       espera.current -= paso
       if (espera.current <= 0) arrancar()
       return
     }
 
-    const c = carrera.current
+    const v = viaje.current
+    if (!congelado.current) v.p += paso / DURACION_TOTAL
 
-    /*
-     * A tirones, no parejo. El factor va de 0.15 a 1: en los valles la
-     * ardilla casi se detiene, que es cuando parece que mira alrededor.
-     */
-    const pulso = Math.sin(reloj.current * 2.1) * 0.5 + 0.5
-    const impulso = 0.15 + Math.pow(pulso, 1.7) * 1.5
-
-    if (!congelado.current) {
-      c.t += (paso / CARRERA_S) * impulso * c.sentido
-    }
-
-    if (c.t <= 0.02 || c.t >= 0.98) {
-      carrera.current = null
+    if (v.p >= 1) {
+      viaje.current = null
       espera.current = ESPERA_MIN + Math.random() * (ESPERA_MAX - ESPERA_MIN)
       g.visible = false
       return
     }
 
     g.visible = true
+    const { nombre, local } = faseDe(v.p)
+    const t0 = 0.02
 
-    c.twig.curve.getPointAt(c.t, punto)
-    c.twig.curve.getTangentAt(c.t, tangente)
-    if (c.sentido === -1) tangente.negate()
+    let velocidadAparente = 1
 
-    // Perpendicular a la rama, lo más "hacia arriba" posible: es el lado por
-    // el que la ardilla va apoyada.
-    normal.copy(UP).addScaledVector(tangente, -UP.dot(tangente))
-    if (normal.lengthSq() < 1e-4) normal.set(0, 0, 1)
-    normal.normalize()
+    if (nombre === 'llega' || nombre === 'seva') {
+      const curva = nombre === 'llega' ? v.llegada : v.salida
+      const u = Math.min(0.999, Math.max(0.001, local))
+      curva.getPointAt(u, punto)
+      curva.getTangentAt(u, tangente)
+      arriba.set(0, 1, 0)
+      // Trotecito sobre el piso.
+      punto.y += Math.abs(Math.sin(reloj.current * 9)) * 0.05
+    } else if (nombre === 'sube' || nombre === 'baja') {
+      const s = aTirones(Math.min(1, Math.max(0, local)), nombre === 'sube' ? 4 : 3)
+      const t = nombre === 'sube'
+        ? t0 + (v.alturaMax - t0) * s
+        : v.alturaMax - (v.alturaMax - t0) * s
+      velocidadAparente = 0.3 + Math.abs(Math.cos(s * (nombre === 'sube' ? 4 : 3) * Math.PI * 2)) * 1.2
 
-    // Cabeceo del galope, sincronizado con el impulso.
-    const cabeceo = Math.sin(reloj.current * 4.2) * 0.02 * impulso
+      puntoDeTronco(v.radial, t, punto)
+      model.trunk.getTangentAt(t, tangente)
+      // Bajando va DE CABEZA, como las ardillas reales.
+      if (nombre === 'baja') tangente.negate()
+      arriba.copy(v.radial)
+    } else {
+      // Pausa arriba: quieta, mirando alrededor.
+      puntoDeTronco(v.radial, v.alturaMax, punto)
+      model.trunk.getTangentAt(v.alturaMax, tangente)
+      arriba.copy(v.radial)
+      // Gira la cabeza (el cuerpo entero, a esta escala da igual) a un lado
+      // y al otro.
+      const giro = Math.sin(local * Math.PI * 3) * 0.55
+      tangente.applyAxisAngle(arriba, giro)
+      velocidadAparente = 0.2
+    }
 
-    g.position
-      .copy(punto)
-      .addScaledVector(normal, c.twig.radius * TAMANO + 0.12 * TAMANO + cabeceo)
+    g.position.copy(punto)
 
-    // La orientación usa `up` propio para que quede parada sobre la rama y
-    // no acostada: lookAt respeta object.up.
-    g.up.copy(normal)
-    mira.copy(g.position).add(tangente)
-    g.lookAt(mira)
+    /*
+     * Orientación con transición suave. En los cambios de fase el "arriba"
+     * salta —del piso a la corteza, de mirar hacia arriba a bajar de
+     * cabeza— y un salto seco parece un corte de edición. El slerp con
+     * constante corta lo convierte en un gesto: la ardilla se da vuelta.
+     */
+    mira.copy(punto).add(tangente)
+    matriz.lookAt(punto, mira, arriba)
+    rotObjetivo.setFromRotationMatrix(matriz)
+    g.quaternion.slerp(rotObjetivo, 1 - Math.exp(-9 * paso))
 
-    // La cola se mece contra el sentido de la carrera: contrapeso.
+    // La cola se mece más cuanto más quieta está: contrapeso y "estoy viva".
     if (cola.current) {
-      cola.current.rotation.x = Math.sin(reloj.current * 3.1) * 0.18 - impulso * 0.12
-      cola.current.rotation.z = Math.sin(reloj.current * 2.3) * 0.1
+      const meneo = nombre === 'pausa' ? 0.34 : 0.16
+      cola.current.rotation.x = Math.sin(reloj.current * 3.1) * meneo - velocidadAparente * 0.1
+      cola.current.rotation.z = Math.sin(reloj.current * 2.3) * meneo * 0.6
     }
   })
 
