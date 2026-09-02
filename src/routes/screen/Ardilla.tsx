@@ -8,50 +8,43 @@ import { trunkRadius } from './tubeBuilder'
  * Una ardilla de luz que llega por el piso, TREPA EL TRONCO, mira desde
  * arriba y baja de cabeza antes de irse.
  *
- * PROTOTIPO, rama `animales`. La primera versión corría por una rama de la
- * copa y el pedido fue claro: tiene que verse MUY sensiblemente subir desde
- * un costado y bajar del árbol. Eso cambia el escenario: el tronco es la
- * pieza más central y más gruesa de la pantalla, así que un animalito
- * trepándolo se ve siempre, mientras que en la copa se perdía entre el
- * follaje.
+ * PROTOTIPO, rama `animales`. Sobre el pedido de que sea "hiperrealista":
+ * lo que se puede empujar hacia lo real acá es la ANATOMÍA y el MOVIMIENTO
+ * —pecho y grupa diferenciados, orejas paradas, patas que galopan en pares,
+ * la cola en S— no el material. El árbol es luz estilizada, y una ardilla
+ * con pelo fotográfico al lado de un árbol de neón rompería la armonía que
+ * el mismo pedido exige. Un animal se reconoce por su silueta y por cómo se
+ * mueve mucho antes que por su textura.
  *
  * El viaje completo, unos diecisiete segundos:
  *
- *   llega   corre por el piso desde un costado hasta la base
+ *   llega   galopa por el piso desde un costado hasta la base
  *   sube    trepa el tronco a tirones, pegada a la corteza
  *   pausa   se detiene arriba y mira alrededor
  *   baja    desciende DE CABEZA, que es como bajan las ardillas reales
- *   seva    corre por el piso hacia el otro lado y desaparece
+ *   seva    galopa hacia el otro lado y desaparece
  *
- * Dos detalles que hacen que se lea:
- *
- * TREPA POR EL LADO QUE MIRA LA CÁMARA. El azimut de la subida se elige al
- * arrancar según dónde está la cámara, así el viaje ocurre en la cara
- * visible del tronco y no en la de atrás. La cámara orbita despacio, así que
- * durante el viaje se corre un poco, pero nunca lo suficiente como para
- * esconderla.
- *
- * VA APOYADA EN LA CORTEZA DE VERDAD. La distancia al eje del tronco sale de
+ * Trepa por el lado que mira la cámara (el azimut se elige al arrancar) y
+ * va apoyada en la corteza de verdad: la distancia al eje sale de
  * trunkRadius(t), la misma función con la que se construyó el tubo del
- * tronco: más gorda abajo, más fina arriba. Sin eso la ardilla flota al
- * subir o se hunde en la madera.
+ * tronco. Sin eso flota al subir o se hunde en la madera.
  */
 
 const ESPERA_MIN = 26
 const ESPERA_MAX = 48
 
 /** Blanco cálido. Ninguna de las ocho áreas usa nada parecido. */
-const COLOR = '#ffdfc0'
+const COLOR = '#ffc890'
 
 /*
  * A 2.4 parecía un oso abrazando el tronco: medía un tercio del árbol.
- * Una ardilla real sería invisible; esto es el punto medio entre que se
- * lea el animal y que las proporciones no den risa.
+ * Este es el punto medio entre que se lea el animal y que las proporciones
+ * no den risa.
  */
 const TAMANO = 1.35
 
 /** Hasta dónde llegan las patas por debajo del origen, en unidades locales. */
-const PIES = 0.132
+const PIES = 0.16
 
 /** Altura del origen del grupo sobre la superficie de apoyo (las patas). */
 const APOYO = PIES * TAMANO + 0.02
@@ -89,29 +82,7 @@ function aTirones(s: number, tirones: number): number {
   return s - Math.sin(s * tirones * Math.PI * 2) / (tirones * Math.PI * 2.6)
 }
 
-function crearCuerpo(): THREE.BufferGeometry {
-  const geo = new THREE.SphereGeometry(0.09, 8, 6)
-  geo.scale(1, 0.82, 2.6)
-  return geo
-}
-
-function crearCabeza(): THREE.BufferGeometry {
-  const geo = new THREE.SphereGeometry(0.068, 7, 5)
-  geo.scale(1, 1.05, 1.1)
-  geo.translate(0, 0.05, -0.27)
-  return geo
-}
-
-function crearPatas(): THREE.BufferGeometry {
-  const geos: THREE.BufferGeometry[] = []
-  for (const z of [-0.14, 0.12]) {
-    for (const x of [-0.07, 0.07]) {
-      const g = new THREE.SphereGeometry(0.028, 5, 4)
-      g.scale(0.8, 1.5, 0.8)
-      g.translate(x, -0.09, z)
-      geos.push(g)
-    }
-  }
+function fusionar(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const total = geos.reduce((n, g) => n + (g.attributes.position as THREE.BufferAttribute).count, 0)
   const pos = new Float32Array(total * 3)
   const idx: number[] = []
@@ -130,24 +101,88 @@ function crearPatas(): THREE.BufferGeometry {
   return geo
 }
 
-/** Cola: sube por detrás y acompaña el lomo sin taparlo. */
+/**
+ * Cuerpo con anatomía: pecho angosto adelante, grupa alta y redonda atrás.
+ * La joroba trasera es LA forma de una ardilla en cuatro patas; el
+ * elipsoide parejo de la versión anterior era la forma de una papa.
+ */
+function crearCuerpo(): THREE.BufferGeometry {
+  const pecho = new THREE.SphereGeometry(0.07, 8, 6)
+  pecho.scale(0.92, 0.95, 1.35)
+  pecho.translate(0, -0.005, -0.1)
+
+  const grupa = new THREE.SphereGeometry(0.092, 8, 6)
+  grupa.scale(1, 1.12, 1.35)
+  grupa.translate(0, 0.03, 0.1)
+
+  return fusionar([pecho, grupa])
+}
+
+/** Cabeza con hocico en punta y OREJAS PARADAS: la firma de la silueta. */
+function crearCabeza(): THREE.BufferGeometry {
+  const cabeza = new THREE.SphereGeometry(0.056, 8, 6)
+  cabeza.scale(0.95, 1, 1.2)
+  cabeza.translate(0, 0.075, -0.21)
+
+  const hocico = new THREE.SphereGeometry(0.028, 6, 4)
+  hocico.scale(0.85, 0.8, 1.5)
+  hocico.translate(0, 0.06, -0.28)
+
+  const orejaI = new THREE.ConeGeometry(0.018, 0.05, 5)
+  orejaI.translate(-0.032, 0.145, -0.2)
+  const orejaD = new THREE.ConeGeometry(0.018, 0.05, 5)
+  orejaD.translate(0.032, 0.145, -0.2)
+
+  return fusionar([cabeza, hocico, orejaI, orejaD])
+}
+
+/**
+ * Un par de patas colgando de una misma cadera.
+ *
+ * Las ardillas no trotan: SALTAN. Las dos delanteras se mueven juntas y las
+ * dos traseras juntas, en contrafase. Por eso las patas van en dos mallas
+ * —par delantero, par trasero— y no en cuatro: el par entero rota desde su
+ * línea de cadera.
+ */
+function crearParDePatas(traseras: boolean): THREE.BufferGeometry {
+  const geos: THREE.BufferGeometry[] = []
+  for (const x of [-0.05, 0.05]) {
+    const g = new THREE.CylinderGeometry(
+      traseras ? 0.02 : 0.015,
+      traseras ? 0.024 : 0.018,
+      0.12,
+      5,
+    )
+    g.translate(x, -0.06, 0)
+    geos.push(g)
+  }
+  return fusionar(geos)
+}
+
+/**
+ * La cola en S: nace fina del lomo, se ensancha a lo bruto y termina en
+ * punta inclinada sobre la espalda. Es lo que más geometría lleva de todo
+ * el animal, porque es lo que el ojo usa para decir "ardilla".
+ */
 function crearCola(): THREE.BufferGeometry {
   const curva = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0.0, 0.2),
-    new THREE.Vector3(0, 0.13, 0.32),
-    new THREE.Vector3(0, 0.29, 0.34),
-    new THREE.Vector3(0, 0.42, 0.27),
-    new THREE.Vector3(0, 0.48, 0.15),
+    new THREE.Vector3(0, 0.02, 0.22),
+    new THREE.Vector3(0, 0.1, 0.34),
+    new THREE.Vector3(0, 0.26, 0.38),
+    new THREE.Vector3(0, 0.42, 0.32),
+    new THREE.Vector3(0, 0.52, 0.18),
+    new THREE.Vector3(0, 0.55, 0.04),
   ])
-  const SEG = 14
-  const ANILLO = 6
-  const geo = new THREE.TubeGeometry(curva, SEG, 0.05, ANILLO, false)
+  const SEG = 18
+  const ANILLO = 7
+  const geo = new THREE.TubeGeometry(curva, SEG, 0.052, ANILLO, false)
   const pos = geo.attributes.position as THREE.BufferAttribute
   const centro = new THREE.Vector3()
   const v = new THREE.Vector3()
   for (let i = 0; i <= SEG; i++) {
     const t = i / SEG
-    const grosor = 0.42 + Math.sin(t * Math.PI) * 0.75
+    // Fina en la base, muy gorda pasada la mitad, en punta al final.
+    const grosor = 0.5 + Math.sin(Math.pow(t, 0.8) * Math.PI) * 1.3
     curva.getPointAt(t, centro)
     for (let j = 0; j <= ANILLO; j++) {
       const k = i * (ANILLO + 1) + j
@@ -172,24 +207,27 @@ interface Viaje {
 
 export default function Ardilla() {
   const grupo = useRef<THREE.Group>(null)
+  const cuerpo = useRef<THREE.Mesh>(null)
   const cola = useRef<THREE.Mesh>(null)
+  const patasDelanteras = useRef<THREE.Mesh>(null)
+  const patasTraseras = useRef<THREE.Mesh>(null)
   const { camera } = useThree()
 
   const model = useMemo(() => getTreeModel(), [])
   const cuerpoGeo = useMemo(crearCuerpo, [])
   const cabezaGeo = useMemo(crearCabeza, [])
   const colaGeo = useMemo(crearCola, [])
-  const patasGeo = useMemo(crearPatas, [])
+  const patasDelGeo = useMemo(() => crearParDePatas(false), [])
+  const patasTrasGeo = useMemo(() => crearParDePatas(true), [])
 
   const material = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(COLOR),
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.42,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        side: THREE.DoubleSide,
         toneMapped: false,
       }),
     [],
@@ -309,8 +347,8 @@ export default function Ardilla() {
       curva.getPointAt(u, punto)
       curva.getTangentAt(u, tangente)
       arriba.set(0, 1, 0)
-      // Trotecito sobre el piso.
-      punto.y += Math.abs(Math.sin(reloj.current * 9)) * 0.05
+      // Salto del galope: el cuerpo entero sube y baja con cada brinco.
+      punto.y += Math.abs(Math.sin(reloj.current * 7)) * 0.06
     } else if (nombre === 'sube' || nombre === 'baja') {
       const s = aTirones(Math.min(1, Math.max(0, local)), nombre === 'sube' ? 4 : 3)
       const t = nombre === 'sube'
@@ -328,8 +366,6 @@ export default function Ardilla() {
       puntoDeTronco(v.radial, v.alturaMax, punto)
       model.trunk.getTangentAt(v.alturaMax, tangente)
       arriba.copy(v.radial)
-      // Gira la cabeza (el cuerpo entero, a esta escala da igual) a un lado
-      // y al otro.
       const giro = Math.sin(local * Math.PI * 3) * 0.55
       tangente.applyAxisAngle(arriba, giro)
       velocidadAparente = 0.2
@@ -340,27 +376,41 @@ export default function Ardilla() {
     /*
      * Orientación con transición suave. En los cambios de fase el "arriba"
      * salta —del piso a la corteza, de mirar hacia arriba a bajar de
-     * cabeza— y un salto seco parece un corte de edición. El slerp con
-     * constante corta lo convierte en un gesto: la ardilla se da vuelta.
+     * cabeza— y un salto seco parece un corte de edición. El slerp lo
+     * convierte en un gesto: la ardilla se da vuelta.
      */
     mira.copy(punto).add(tangente)
     matriz.lookAt(punto, mira, arriba)
     rotObjetivo.setFromRotationMatrix(matriz)
     g.quaternion.slerp(rotObjetivo, 1 - Math.exp(-9 * paso))
 
-    // La cola se mece más cuanto más quieta está: contrapeso y "estoy viva".
+    /*
+     * GALOPE. Las ardillas no trotan: saltan. Los dos pares de patas van en
+     * contrafase —las traseras empujan, las delanteras aterrizan— y el lomo
+     * se arquea con cada brinco. La amplitud sigue a la velocidad: en los
+     * frenos del tirón las patas casi se detienen y el animal "duda", que
+     * es el gesto más de ardilla que existe.
+     */
+    const brinco = Math.sin(reloj.current * 7) * Math.min(1, velocidadAparente)
+    if (patasDelanteras.current) patasDelanteras.current.rotation.x = brinco * 0.7
+    if (patasTraseras.current) patasTraseras.current.rotation.x = -brinco * 0.8
+    if (cuerpo.current) cuerpo.current.rotation.x = brinco * 0.09
+
+    // La cola se mece más cuanto más quieta está.
     if (cola.current) {
-      const meneo = nombre === 'pausa' ? 0.34 : 0.16
-      cola.current.rotation.x = Math.sin(reloj.current * 3.1) * meneo - velocidadAparente * 0.1
+      const meneo = nombre === 'pausa' ? 0.3 : 0.14
+      cola.current.rotation.x = Math.sin(reloj.current * 3.1) * meneo - velocidadAparente * 0.08
       cola.current.rotation.z = Math.sin(reloj.current * 2.3) * meneo * 0.6
     }
   })
 
   return (
     <group ref={grupo} name="ardilla" scale={TAMANO} visible={false}>
-      <mesh geometry={cuerpoGeo} material={material} />
+      <mesh ref={cuerpo} geometry={cuerpoGeo} material={material} />
       <mesh geometry={cabezaGeo} material={material} />
-      <mesh geometry={patasGeo} material={material} />
+      {/* Caderas: cada par de patas cuelga de su línea y rota desde ahí. */}
+      <mesh ref={patasDelanteras} geometry={patasDelGeo} material={material} position={[0, -0.03, -0.13]} />
+      <mesh ref={patasTraseras} geometry={patasTrasGeo} material={material} position={[0, -0.03, 0.13]} />
       <mesh ref={cola} geometry={colaGeo} material={material} />
     </group>
   )

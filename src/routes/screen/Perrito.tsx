@@ -34,8 +34,8 @@ const ESPERA_MIN = 45
 const ESPERA_MAX = 80
 
 /** Dorado pálido y desaturado: lejos del amarillo saturado de Tecnología. */
-const COLOR = '#f4e8cd'
-const COLOR_PIS = '#ffd75e'
+const COLOR = '#f0d9a8'
+const COLOR_PIS = '#ffe000'
 
 const TAMANO = 1.6
 
@@ -85,23 +85,15 @@ function crearCabeza(): THREE.BufferGeometry {
   return fusionar([cabeza, hocico, orejaI, orejaD])
 }
 
-/** Tres patas fijas (las dos delanteras y la trasera izquierda). */
-function crearPatasFijas(): THREE.BufferGeometry {
-  const geos: THREE.BufferGeometry[] = []
-  for (const [x, z] of [
-    [-0.06, -0.16],
-    [0.06, -0.16],
-    [-0.06, 0.16],
-  ]) {
-    const g = new THREE.CylinderGeometry(0.02, 0.024, 0.16, 5)
-    g.translate(x, -0.14, z)
-    geos.push(g)
-  }
-  return fusionar(geos)
-}
-
-/** La pata trasera derecha, separada: es la que se levanta. */
-function crearPataQueLevanta(): THREE.BufferGeometry {
+/**
+ * Una pata suelta, colgando de su cadera.
+ *
+ * Son CUATRO mallas separadas y no un bloque fusionado, porque un perro que
+ * se desliza con las patas rígidas se lee como un bug —lo reportó el equipo
+ * con esas palabras—. Sueltas, trotan en pares diagonales, que es como trota
+ * un perro de verdad.
+ */
+function crearPata(): THREE.BufferGeometry {
   const g = new THREE.CylinderGeometry(0.02, 0.024, 0.16, 5)
   // El origen queda en la cadera para que la rotación sea desde ahí.
   g.translate(0, -0.08, 0)
@@ -128,7 +120,7 @@ function crearChorrito(): THREE.BufferGeometry {
     new THREE.Vector3(0.18, -0.19, 0.16),
     new THREE.Vector3(0.22, -0.26, 0.16),
   ])
-  return new THREE.TubeGeometry(curva, 8, 0.008, 4, false)
+  return new THREE.TubeGeometry(curva, 8, 0.018, 4, false)
 }
 
 function fusionar(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
@@ -160,15 +152,17 @@ interface Paseo {
 
 export default function Perrito() {
   const grupo = useRef<THREE.Group>(null)
-  const pata = useRef<THREE.Mesh>(null)
+  const pataDI = useRef<THREE.Mesh>(null)
+  const pataDD = useRef<THREE.Mesh>(null)
+  const pataTI = useRef<THREE.Mesh>(null)
+  const pataTD = useRef<THREE.Mesh>(null)
   const colita = useRef<THREE.Mesh>(null)
   const chorrito = useRef<THREE.Mesh>(null)
   const { camera } = useThree()
 
   const cuerpoGeo = useMemo(crearCuerpo, [])
   const cabezaGeo = useMemo(crearCabeza, [])
-  const patasGeo = useMemo(crearPatasFijas, [])
-  const pataGeo = useMemo(crearPataQueLevanta, [])
+  const pataGeo = useMemo(crearPata, [])
   const colitaGeo = useMemo(crearColita, [])
   const chorritoGeo = useMemo(crearChorrito, [])
 
@@ -177,10 +171,9 @@ export default function Perrito() {
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(COLOR),
         transparent: true,
-        opacity: 0.52,
+        opacity: 0.4,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        side: THREE.DoubleSide,
         toneMapped: false,
       }),
     [],
@@ -330,7 +323,7 @@ export default function Perrito() {
         pataArriba = Math.min(subida, bajada)
         const chorro = Math.min(1, Math.max(0, (local - 0.18) / 0.1)) *
           Math.min(1, Math.max(0, (0.92 - local) / 0.1))
-        pisOpacidad = chorro * 0.55
+        pisOpacidad = chorro * 0.8
       }
     }
 
@@ -340,10 +333,28 @@ export default function Perrito() {
     rotObjetivo.setFromRotationMatrix(matriz)
     g.quaternion.slerp(rotObjetivo, 1 - Math.exp(-8 * paso))
 
-    // La pata trasera derecha rota hacia afuera desde la cadera.
-    if (pata.current) {
-      const objetivo = pataArriba * 1.15
-      pata.current.rotation.z += (-objetivo - pata.current.rotation.z) * Math.min(1, 10 * paso)
+    /*
+     * Trote en pares diagonales: delantera izquierda con trasera derecha,
+     * delantera derecha con trasera izquierda, en contrafase. Es el patron
+     * real del trote y es lo que faltaba: con las patas rigidas el perro se
+     * deslizaba como un mueble.
+     */
+    const zancada = trotando ? Math.sin(reloj.current * 10) * 0.5 : 0
+    if (pataDI.current) pataDI.current.rotation.x += (zancada - pataDI.current.rotation.x) * Math.min(1, 14 * paso)
+    if (pataTD.current && pataArriba === 0) pataTD.current.rotation.x += (zancada - pataTD.current.rotation.x) * Math.min(1, 14 * paso)
+    if (pataDD.current) pataDD.current.rotation.x += (-zancada - pataDD.current.rotation.x) * Math.min(1, 14 * paso)
+    if (pataTI.current) pataTI.current.rotation.x += (-zancada - pataTI.current.rotation.x) * Math.min(1, 14 * paso)
+
+    /*
+     * La pata que levanta es la trasera DERECHA, y sube hacia +X, que es el
+     * lado del tronco. Antes subia hacia -X: cruzaba el cuerpo por adentro,
+     * atravesaba la otra pata trasera y quedaba apuntando al lado contrario
+     * del arbol. Ese era el bug de las patas.
+     */
+    if (pataTD.current) {
+      const objetivo = pataArriba * 1.05
+      pataTD.current.rotation.z += (objetivo - pataTD.current.rotation.z) * Math.min(1, 10 * paso)
+      if (pataArriba > 0) pataTD.current.rotation.x += (0 - pataTD.current.rotation.x) * Math.min(1, 10 * paso)
     }
 
     if (chorrito.current) {
@@ -362,9 +373,11 @@ export default function Perrito() {
     <group ref={grupo} name="perrito" scale={TAMANO} visible={false}>
       <mesh geometry={cuerpoGeo} material={material} />
       <mesh geometry={cabezaGeo} material={material} />
-      <mesh geometry={patasGeo} material={material} />
-      {/* La cadera derecha trasera: la pata cuelga de este punto. */}
-      <mesh ref={pata} geometry={pataGeo} material={material} position={[0.06, -0.06, 0.16]} />
+      <mesh ref={pataDI} geometry={pataGeo} material={material} position={[-0.06, -0.06, -0.16]} />
+      <mesh ref={pataDD} geometry={pataGeo} material={material} position={[0.06, -0.06, -0.16]} />
+      <mesh ref={pataTI} geometry={pataGeo} material={material} position={[-0.06, -0.06, 0.16]} />
+      {/* La trasera derecha es la que levanta: del lado del tronco. */}
+      <mesh ref={pataTD} geometry={pataGeo} material={material} position={[0.06, -0.06, 0.16]} />
       <mesh ref={colita} geometry={colitaGeo} material={material} position={[0, 0.06, 0.2]} />
       <mesh ref={chorrito} geometry={chorritoGeo} material={materialPis} position={[0.04, 0, 0]} visible={false} />
     </group>
