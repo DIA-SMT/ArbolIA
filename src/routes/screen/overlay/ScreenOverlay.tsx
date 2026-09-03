@@ -56,7 +56,7 @@ export default function ScreenOverlay({
 
         <div className="overlay__event">
           <span className="overlay__rule" />
-          <span className="overlay__event-name">ExpoCom 2026</span>
+          <span className="overlay__event-name">ExpoCon 2026</span>
           <span className="overlay__rule" />
         </div>
 
@@ -137,7 +137,7 @@ export default function ScreenOverlay({
         {/* ---------- Meta ---------- */}
         <div className="goal">
           <div className="goal__head">
-            <span className="goal__title">Meta ExpoCom 2026</span>
+            <span className="goal__title">Meta ExpoCon 2026</span>
             <span className="goal__stage">{growth.label}</span>
           </div>
 

@@ -44,7 +44,7 @@ export default function CelebrationOverlay({ milestone, goal, onDismiss }: Props
           >
             {isGoal ? (
               <>
-                <p className="celebration__eyebrow">Meta ExpoCom 2026 alcanzada</p>
+                <p className="celebration__eyebrow">Meta ExpoCon 2026 alcanzada</p>
                 <h2 className="celebration__headline">
                   ¡{milestone} IDEAS PARA CONSTRUIR EL FUTURO DE TUCUMÁN!
                 </h2>
