@@ -174,3 +174,38 @@ export function branchRadiusFor(level: number, baseRadius: number) {
 export function rootRadius(t: number): number {
   return 0.115 * Math.pow(1 - t, 0.55) + 0.006
 }
+
+/**
+ * Grosor de una raíz según su nivel en la jerarquía.
+ *
+ * Cada nivel tiene su propio par base/punta en vez de escalar la curva del
+ * nivel anterior, y el motivo es que escalar no funciona cuando hay cuatro
+ * niveles: rootRadius() termina en 0.006, así que multiplicar por 0.15 para
+ * el último nivel daba raicillas de 0.0009 de radio. En pantalla eso no es
+ * "fino", es MENOS DE UN PÍXEL — y con el antialias apagado a propósito
+ * para llegar a 60 fps en la placa del stand, una línea de menos de un
+ * píxel no se dibuja tenue: titila.
+ *
+ * Con la tabla, cada nivel arranca cerca de donde termina su madre —así la
+ * unión no tiene escalón— y ninguno baja de 0.010, que a la distancia de
+ * encuadre de la instalación son unos dos píxeles de diámetro.
+ *
+ * Los dos píxeles no son casualidad: el encuadre de la cámara se recalcula
+ * con la escala del árbol (ver CameraRig), así que el árbol ocupa siempre
+ * la misma fracción de pantalla y el grosor en píxeles de una raíz NO
+ * cambia con la etapa de crecimiento. Si algún día el encuadre deja de
+ * adaptarse, esta tabla hay que revisarla.
+ */
+const RADIO_RAIZ: Array<{ base: number; punta: number }> = [
+  { base: 0.115, punta: 0.034 }, // 1 · madres
+  { base: 0.042, punta: 0.020 }, // 2
+  { base: 0.026, punta: 0.013 }, // 3
+  { base: 0.016, punta: 0.010 }, // 4 · cabellera
+]
+
+export function rootRadiusFor(level: number, t: number): number {
+  const r = RADIO_RAIZ[Math.min(RADIO_RAIZ.length, Math.max(1, level)) - 1]
+  // Mismo exponente que rootRadius: adelgaza rápido al principio y después
+  // se sostiene, que es como se ve una raíz de verdad.
+  return r.base + (r.punta - r.base) * Math.pow(t, 0.55)
+}

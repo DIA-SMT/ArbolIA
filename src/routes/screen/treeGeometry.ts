@@ -106,7 +106,7 @@ export interface LeafSlot {
 
 export interface RootCurve {
   curve: THREE.CatmullRomCurve3
-  /** 1 = raíz principal, 2 = secundaria. */
+  /** 1 = madre, 2 y 3 = ramificaciones, 4 = cabellera fina. */
   level: number
   /** Tramo de uv.x que ocupa: define cuándo aparece al crecer. */
   uvStart: number
@@ -175,24 +175,61 @@ function buildTrunk(): THREE.CatmullRomCurve3 {
 }
 
 /**
+ * Dónde arranca y dónde termina, en uv.x, el tramo de cada nivel de raíz.
+ *
+ * Las raíces se revelan al crecer: el shader descarta todo lo que tenga
+ * uv.x por encima de uReveal, así que este reparto ES el orden en que la
+ * base aparece a lo largo de la feria. Primero las madres, después la
+ * ramificación, y la cabellera fina al final.
+ *
+ * Los tramos son desparejos a propósito. Repartidos en cuartos iguales, el
+ * último nivel —que es donde vive la mitad de la geometría y todo el
+ * aspecto frondoso— tardaría lo mismo en aparecer que las cuatro madres, y
+ * la base se vería pelada durante casi toda la jornada. Así el esqueleto se
+ * resuelve rápido y el grueso del tiempo se lo lleva llenarse de raicillas,
+ * que es lo que se quiere ver crecer.
+ *
+ * NIVELES + 1 entradas: el nivel n va de UV_NIVEL[n-1] a UV_NIVEL[n].
+ */
+const UV_NIVEL = [0, 0.34, 0.58, 0.8, 1]
+
+/** Cuántas hijas larga cada nivel. El último no ramifica. */
+const HIJAS_POR_NIVEL = [
+  [3, 4], // las madres abren en 3 o 4
+  [2, 3],
+  [2, 2],
+]
+
+/**
  * Raíces: descienden y se abren. Representan a la comunidad.
  *
- * Cada raíz principal se bifurca en dos o tres secundarias más finas.
- * Importa porque las raíces crecen con la participación: si fueran once
- * palos rectos, extenderse sería sólo alargarse. Con ramificación, cuanto
- * más participa la gente más se ramifica la base — que es exactamente lo
- * que la instalación quiere decir.
+ * Cuatro niveles de ramificación, contra los dos que había. El pedido era
+ * que se parecieran a las de un árbol de verdad, donde lo que se ve no es
+ * un puñado de brazos gruesos sino una MARAÑA: cada raíz se parte, y cada
+ * pedazo se vuelve a partir, hasta una cabellera de raicillas que es lo que
+ * de lejos da la textura.
  *
- * El `depth` de cada tramo indica su nivel, y el orden importa: las
- * secundarias se generan después para que su uv.x arranque donde termina
- * la madre y el crecimiento se lea continuo.
+ * Y no es sólo estética. Las raíces crecen con la participación: si fueran
+ * dieciséis palos rectos, extenderse sería sólo alargarse. Con cuatro
+ * niveles, cuanto más participa la gente más se RAMIFICA la base, que es
+ * exactamente lo que la instalación quiere decir. Cada crítica que cae
+ * empuja ese frente un poco más adentro de la maraña.
+ *
+ * El orden de generación importa: cada tramo se emite después de su madre
+ * para que su uv.x arranque donde el de ella termina y el frente de
+ * crecimiento avance continuo, sin saltos en las axilas.
  */
 function buildRoots(): RootCurve[] {
-  const rng = seededRandom('arbolia-roots-v3')
-  const count = 16
+  /*
+   * Semilla nueva. La v3 daba el reparto de dieciséis madres de la versión
+   * de dos niveles; al cambiar cuántos números pide el generador, el árbol
+   * salía distinto igual, así que conviene que la semilla lo diga.
+   */
+  const rng = seededRandom('arbolia-roots-v4')
+  const madres = 16
   const roots: RootCurve[] = []
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < madres; i++) {
     // También por ángulo áureo: raíces sin patrón de estrella.
     const angle = i * GOLDEN_ANGLE + randomRange(rng, -0.12, 0.12)
     const reach = randomRange(rng, 1.15, 2.5)
@@ -225,55 +262,95 @@ function buildRoots(): RootCurve[] {
       0.5,
     )
 
-    roots.push({ curve: main, level: 1, uvStart: 0, uvEnd: 0.68 })
-
-    // Secundarias: nacen en el tramo final y siguen abriéndose.
-    const childCount = rng() > 0.4 ? 4 : 3
-    for (let c = 0; c < childCount; c++) {
-      const at = 0.55 + (c / childCount) * 0.35
-      const base = main.getPointAt(Math.min(0.95, at))
-      const spread = randomRange(rng, 0.45, 1.05)
-      const childAngle = tipAngle + (c - (childCount - 1) / 2) * spread
-
-      const childReach = reach * randomRange(rng, 0.34, 0.58)
-      const childDepth = randomRange(rng, 0.15, 0.42)
-
-      roots.push({
-        curve: new THREE.CatmullRomCurve3(
-          [
-            base.clone(),
-            base
-              .clone()
-              .add(
-                new THREE.Vector3(
-                  Math.cos(childAngle) * childReach * 0.5,
-                  -childDepth * 0.55,
-                  Math.sin(childAngle) * childReach * 0.5,
-                ),
-              ),
-            base
-              .clone()
-              .add(
-                new THREE.Vector3(
-                  Math.cos(childAngle + randomRange(rng, -0.25, 0.25)) * childReach,
-                  -childDepth,
-                  Math.sin(childAngle + randomRange(rng, -0.25, 0.25)) * childReach,
-                ),
-              ),
-          ],
-          false,
-          'catmullrom',
-          0.5,
-        ),
-        level: 2,
-        // Arrancan donde termina la madre: el avance se ve continuo.
-        uvStart: 0.68,
-        uvEnd: 1,
-      })
-    }
+    roots.push({ curve: main, level: 1, uvStart: UV_NIVEL[0], uvEnd: UV_NIVEL[1] })
+    ramificarRaiz(rng, roots, main, tipAngle, reach, 1)
   }
 
   return roots
+}
+
+/**
+ * Larga las hijas de una raíz, y las hijas de esas, hasta el último nivel.
+ *
+ * Cada hija nace en el tramo FINAL de su madre —de la mitad para adelante—
+ * porque una raíz no se abre en abanico desde el arranque: baja un trecho
+ * y recién después se divide. Naciendo cerca del tronco, las dieciséis
+ * madres se volvían un pompón y se perdía el dibujo de la base.
+ *
+ * Cada nivel abre más el ángulo y baja menos: la maraña se APLANA hacia
+ * afuera en vez de seguir hundiéndose, que es lo que hace un sistema
+ * radicular real —las raicillas buscan a los costados, no al centro de la
+ * tierra— y de paso mantiene la cabellera dentro del disco de suelo.
+ */
+function ramificarRaiz(
+  rng: () => number,
+  roots: RootCurve[],
+  madre: THREE.CatmullRomCurve3,
+  anguloMadre: number,
+  alcanceMadre: number,
+  nivel: number,
+): void {
+  const rango = HIJAS_POR_NIVEL[nivel - 1]
+  if (!rango) return
+
+  const cuantas = Math.round(randomRange(rng, rango[0], rango[1]))
+
+  for (let c = 0; c < cuantas; c++) {
+    // Repartidas por el tramo final de la madre, no todas del mismo punto.
+    const at = 0.5 + (c / cuantas) * 0.42 + randomRange(rng, -0.04, 0.04)
+    const base = madre.getPointAt(Math.min(0.97, Math.max(0.35, at)))
+
+    // Cada nivel se abre más que el anterior.
+    const apertura = randomRange(rng, 0.4, 0.95) * (1 + nivel * 0.28)
+    const anguloHija = anguloMadre + (c - (cuantas - 1) / 2) * apertura
+
+    const alcance = alcanceMadre * randomRange(rng, 0.3, 0.52)
+    // La caída se achica con el nivel: la maraña se abre a lo ancho.
+    const caida = randomRange(rng, 0.1, 0.34) / (1 + nivel * 0.5)
+
+    const desvio = () => anguloHija + randomRange(rng, -0.3, 0.3)
+
+    const curva = new THREE.CatmullRomCurve3(
+      [
+        base.clone(),
+        base.clone().add(
+          new THREE.Vector3(
+            Math.cos(anguloHija) * alcance * 0.45,
+            -caida * 0.5,
+            Math.sin(anguloHija) * alcance * 0.45,
+          ),
+        ),
+        base.clone().add(
+          new THREE.Vector3(
+            Math.cos(desvio()) * alcance * 0.78,
+            -caida * 0.85,
+            Math.sin(desvio()) * alcance * 0.78,
+          ),
+        ),
+        base.clone().add(
+          new THREE.Vector3(
+            Math.cos(desvio()) * alcance,
+            -caida,
+            Math.sin(desvio()) * alcance,
+          ),
+        ),
+      ],
+      false,
+      'catmullrom',
+      0.5,
+    )
+
+    const hija = nivel + 1
+    roots.push({
+      curve: curva,
+      level: hija,
+      // Arranca donde termina la madre: el avance se ve continuo.
+      uvStart: UV_NIVEL[hija - 1],
+      uvEnd: UV_NIVEL[hija],
+    })
+
+    ramificarRaiz(rng, roots, curva, anguloHija, alcance, hija)
+  }
 }
 
 // ---------------------------------------------------------------------

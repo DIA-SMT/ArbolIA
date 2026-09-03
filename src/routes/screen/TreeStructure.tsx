@@ -8,7 +8,7 @@ import {
   createAccumulator,
   createTaperedTube,
   finalize,
-  rootRadius,
+  rootRadiusFor,
   trunkRadius,
 } from './tubeBuilder'
 import { getTreeModel } from './treeGeometry'
@@ -79,15 +79,39 @@ export default function TreeStructure({
     [model],
   )
 
+  /*
+   * Detalle de dibujo por nivel de raíz.
+   *
+   * Con cuatro niveles hay unas quinientas raíces y la mitad son cabellera
+   * fina. Darles a todas la resolución de una madre —26 tramos y 8 lados—
+   * sería gastar treinta mil vértices en tubos de dos píxeles de ancho,
+   * donde ningún lado extra se puede llegar a ver. Bajando el detalle con
+   * el nivel, la maraña entera cuesta parecido a lo que costaban las
+   * dieciséis madres solas.
+   *
+   * `thickness` no es geometría: es el atributo que el shader usa para
+   * decidir cuánto brilla cada tramo. Baja con el nivel porque las raíces
+   * finas son las que llevan la energía, igual que las ramitas nuevas
+   * arriba.
+   */
   const rootsGeo = useMemo(() => {
+    const detalle = [
+      { segmentos: 26, lados: 8, grosor: 0.95 },
+      { segmentos: 14, lados: 6, grosor: 0.62 },
+      { segmentos: 9, lados: 5, grosor: 0.4 },
+      { segmentos: 6, lados: 4, grosor: 0.22 },
+    ]
+
     const acc = createAccumulator()
     model.roots.forEach((root) => {
-      // uvStart/uvEnd encadenan madre y secundarias en un solo recorrido,
-      // así el frente de crecimiento avanza continuo de una a otra.
-      addTube(acc, root.curve, (t) => rootRadius(t) * (root.level === 1 ? 1 : 0.42), {
-        segments: root.level === 1 ? 26 : 14,
-        radialSegments: root.level === 1 ? 8 : 6,
-        thickness: root.level === 1 ? 0.95 : 0.55,
+      const d = detalle[Math.min(detalle.length, Math.max(1, root.level)) - 1]
+      // uvStart/uvEnd encadenan cada tramo con su madre en un solo
+      // recorrido, así el frente de crecimiento avanza continuo por toda
+      // la maraña en vez de saltar de un nivel al siguiente.
+      addTube(acc, root.curve, (t) => rootRadiusFor(root.level, t), {
+        segments: d.segmentos,
+        radialSegments: d.lados,
+        thickness: d.grosor,
         uvStart: root.uvStart,
         uvEnd: root.uvEnd,
       })

@@ -65,12 +65,52 @@ check('sin coordenadas NaN/Infinity', nanCount === 0, `${nanCount} inválidas`)
 const rootTips = mainRoots.map((r) => r.curve.getPointAt(1).y)
 check('las raíces descienden', Math.max(...rootTips) < 0, `y máx ${Math.max(...rootTips).toFixed(2)}`)
 
-// El crecimiento encadena los tramos por uv.x: la secundaria tiene que
-// arrancar exactamente donde termina su madre, o el frente daría un salto.
-const uvGap = model.roots.some(
-  (r) => (r.level === 1 && r.uvEnd !== 0.68) || (r.level === 2 && r.uvStart !== 0.68),
+/*
+ * El crecimiento encadena los tramos por uv.x: cada nivel tiene que
+ * arrancar exactamente donde termina el anterior, o el frente daría un
+ * salto y las raicillas aparecerían de golpe.
+ *
+ * Esto verificaba los dos números literales del reparto de cuando había
+ * dos niveles (0.68 y 0.68). Con cuatro niveles esos números cambiaron y
+ * la prueba se habría puesto roja sin que nada estuviera mal: estaba
+ * comprobando el VALOR en vez del invariante. Ahora deriva el reparto del
+ * propio modelo y comprueba lo que importa — que no queden huecos ni
+ * solapamientos, que empiece en 0 y que termine en 1.
+ */
+const niveles = [...new Set(model.roots.map((r) => r.level))].sort((a, b) => a - b)
+const tramos = niveles.map((n) => {
+  const delNivel = model.roots.filter((r) => r.level === n)
+  return {
+    nivel: n,
+    desde: Math.min(...delNivel.map((r) => r.uvStart)),
+    hasta: Math.max(...delNivel.map((r) => r.uvEnd)),
+    parejo: delNivel.every(
+      (r) => r.uvStart === delNivel[0].uvStart && r.uvEnd === delNivel[0].uvEnd,
+    ),
+  }
+})
+
+const continuo =
+  tramos.length > 1 &&
+  tramos.every((t) => t.parejo && t.hasta > t.desde) &&
+  tramos[0].desde === 0 &&
+  tramos[tramos.length - 1].hasta === 1 &&
+  tramos.every((t, i) => i === 0 || t.desde === tramos[i - 1].hasta)
+
+check(
+  'el recorrido de crecimiento es continuo entre tramos',
+  continuo,
+  tramos.map((t) => `n${t.nivel} ${t.desde}→${t.hasta}`).join(' · '),
 )
-check('el recorrido de crecimiento es continuo entre tramos', !uvGap)
+
+// Ramificación de verdad: cada nivel tiene que tener más tramos que el
+// anterior, o la "maraña" es un puñado de palos con puntas.
+const porNivel = niveles.map((n) => model.roots.filter((r) => r.level === n).length)
+check(
+  'la maraña se abre en cada nivel',
+  porNivel.every((c, i) => i === 0 || c > porNivel[i - 1]),
+  porNivel.map((c, i) => `n${niveles[i]}: ${c}`).join(' · '),
+)
 
 const trunkTop = model.trunk.getPointAt(1).y
 check('altura de tronco razonable', trunkTop > 2.5 && trunkTop < 4, `y ${trunkTop.toFixed(2)}`)
