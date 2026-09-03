@@ -1,0 +1,91 @@
+/* =====================================================================
+   Banco de pruebas de la fauna. Sólo desarrollo.
+
+   Deliberadamente feo y funcional: es una herramienta de taller, no una
+   pantalla del proyecto. Todo lo que se parezca a diseño acá es tiempo
+   que no se está gastando en los animales.
+   ===================================================================== */
+
+.bicho {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-void);
+}
+
+.bicho canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.bicho__panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-mid);
+  background: var(--panel-solido);
+  backdrop-filter: blur(8px);
+  color: var(--text-hi);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.bicho__fila {
+  display: flex;
+  gap: 6px;
+}
+
+.bicho__tab {
+  flex: 1;
+  padding: 6px 4px;
+  border-radius: 7px;
+  border: 1px solid var(--line-mid);
+  background: transparent;
+  color: var(--text-mid);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+.bicho__tab--activa {
+  border-color: var(--accent);
+  color: var(--text-hi);
+  background: var(--panel-alto);
+}
+
+.bicho__campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bicho__campo span {
+  color: var(--text-low);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.bicho__campo b {
+  color: var(--text-hi);
+  font-variant-numeric: tabular-nums;
+}
+
+.bicho__campo input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.bicho__pie {
+  margin: 2px 0 0;
+  color: var(--text-low);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

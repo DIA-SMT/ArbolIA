@@ -15,6 +15,19 @@ const ScreenRoute = lazy(() => import('./routes/screen/ScreenRoute'))
 const MobileRoute = lazy(() => import('./routes/mobile/MobileRoute'))
 const AdminRoute = lazy(() => import('./routes/admin/AdminRoute'))
 
+/**
+ * Banco de pruebas de la fauna, en /bicho. SÓLO EN DESARROLLO.
+ *
+ * El import dinámico está adentro del ternario a propósito. En el build,
+ * import.meta.env.DEV es la constante false, así que esta rama se descarta
+ * y el import() jamás se evalúa: Rollup no genera el chunk y la ruta no
+ * existe en producción. Escrito al revés —lazy() afuera y el guard sólo en
+ * el <Route>— el chunk se empaquetaría igual, apagado pero presente.
+ */
+const BichoRoute = import.meta.env.DEV
+  ? lazy(() => import('./routes/bicho/BichoRoute'))
+  : null
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -39,6 +52,9 @@ export default function App() {
               </StrictMode>
             }
           />
+          {/* Taller de la fauna. No existe en el build de producción. */}
+          {BichoRoute && <Route path="/bicho" element={<BichoRoute />} />}
+
           <Route path="*" element={<Navigate to="/idea" replace />} />
         </Routes>
       </Suspense>
