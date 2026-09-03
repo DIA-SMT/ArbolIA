@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { trunkRadius } from './tubeBuilder'
+import { createFaunaMaterial } from './faunaMaterial'
+import { fusionar, miembro, pelaje, tuboPerfilado } from './formaAnimal'
 
 /**
  * Un perrito de luz que pasa caminando, olfatea el tronco, levanta la pata
@@ -69,8 +71,23 @@ const COLOR_PIS = '#ffe000'
 
 const TAMANO = 1.6
 
-/** Hasta dónde llegan las patas por debajo del origen, en unidades locales. */
-const PIES = 0.22
+/**
+ * Hasta dónde llegan las patas por debajo del origen, en unidades locales.
+ *
+ * NO ES UN NÚMERO LIBRE: sale de sumar la geometría de las patas, y APOYO
+ * lo usa para posar al perro sobre el piso. Corto, el perro se hunde;
+ * largo, camina en el aire. Con los miembros nuevos, y las cuatro patas
+ * llegando a la misma altura:
+ *
+ *   0.060   posición de la pata en el grupo (la línea de cadera)
+ * + 0.140   el miembro: 0.162 de recorrido menos los 0.022 que sube su
+ *           origen para meterse dentro del hombro
+ * = 0.200
+ *
+ * Era 0.22 con los cilindros viejos. Si se cambia el largo de un miembro,
+ * este número se recalcula o el perro deja de tocar el suelo.
+ */
+const PIES = 0.2
 
 /** Altura del origen del grupo sobre el piso (donde apoyan las patas). */
 const APOYO = PIES * TAMANO + 0.02
@@ -93,80 +110,202 @@ function faseDe(p: number): { nombre: string; local: number } {
   return { nombre: 'seva', local: 1 }
 }
 
+/**
+ * Torso de una sola pieza: pecho hondo, cintura marcada, grupa.
+ *
+ * Era UNA esfera estirada a 2.1 de largo, y en el banco de pruebas se veía
+ * lo que eso es: un poroto. Un perro visto de perfil no tiene forma de
+ * elipsoide — tiene el pecho hondo y bajo entre las patas delanteras, la
+ * panza recogida en el medio y la grupa más alta y corta atrás. Esa curva
+ * de abajo, la línea del vientre, es media silueta de perro.
+ *
+ * El eje va del pecho (-Z, adelante) a la cola (+Z) y sube hacia atrás; el
+ * perfil pone el bulto:
+ *
+ *   0.00  base del cuello
+ *   0.26  PECHO, lo más ancho y lo más hondo
+ *   0.60  cintura recogida
+ *   0.84  grupa
+ *   1.00  nacimiento de la cola
+ */
 function crearCuerpo(): THREE.BufferGeometry {
-  const geo = new THREE.SphereGeometry(0.1, 8, 6)
-  geo.scale(0.95, 0.9, 2.1)
-  return geo
+  return tuboPerfilado(
+    [
+      new THREE.Vector3(0, 0.028, -0.21),
+      new THREE.Vector3(0, -0.004, -0.1),
+      new THREE.Vector3(0, -0.012, 0.02),
+      new THREE.Vector3(0, 0.012, 0.13),
+      new THREE.Vector3(0, 0.042, 0.22),
+    ],
+    (t) => {
+      if (t < 0.26) return THREE.MathUtils.lerp(0.66, 1.0, t / 0.26)
+      if (t < 0.6) return THREE.MathUtils.lerp(1.0, 0.82, (t - 0.26) / 0.34)
+      if (t < 0.84) return THREE.MathUtils.lerp(0.82, 0.98, (t - 0.6) / 0.24)
+      return THREE.MathUtils.lerp(0.98, 0.44, (t - 0.84) / 0.16)
+    },
+    { segmentos: 26, lados: 12, radio: 0.094, tapas: true },
+  )
 }
 
 /**
- * Cabeza con hocico, orejas caídas y cuello, todo fusionado en una sola
- * malla: la silueta gana sin sumar draw calls.
+ * Cabeza y cuello, todo fusionado en una sola malla: la silueta gana sin
+ * sumar draw calls.
+ *
+ * Eran tres esferas y un cilindro —cráneo, hocico, orejas, cuello—, y de
+ * cerca se notaba cada junta: sobre todo el escalón donde el hocico se
+ * enchufaba en la cara, que es el defecto clásico del perro de juguete.
+ *
+ * Ahora cuello, cráneo y hocico son UN SOLO tubo perfilado que arranca en
+ * el pecho y termina en la nariz. El perfil hace todo el trabajo: se
+ * ensancha al llegar al cráneo, y de ahí baja en una curva continua hasta
+ * la trufa. El STOP —ese escaloncito entre la frente y el hocico que tienen
+ * casi todas las razas— queda insinuado por el cambio de pendiente del
+ * perfil, no por dos volúmenes chocándose.
  */
 function crearCabeza(): THREE.BufferGeometry {
-  const cabeza = new THREE.SphereGeometry(0.075, 7, 5)
-  cabeza.translate(0, 0.09, -0.24)
-  // Hocico: esfera escalada a ~0.05 de ancho, 0.04 de alto y 0.09 de largo,
-  // adelante y un poco abajo del centro de la cabeza.
-  const hocico = new THREE.SphereGeometry(0.03, 6, 4)
-  hocico.scale(0.83, 0.67, 1.5)
-  hocico.translate(0, 0.065, -0.31)
-  // Orejas caídas: esferas chatas colgando a los costados-arriba.
-  const orejaI = new THREE.SphereGeometry(0.022, 5, 4)
-  orejaI.scale(1, 1.4, 0.5)
-  orejaI.translate(-0.068, 0.1, -0.23)
-  const orejaD = orejaI.clone()
-  orejaD.translate(0.136, 0, 0)
-  // Cuello: cilindro corto inclinado uniendo el pecho con la cabeza, porque
-  // sin él la cabeza flotaba despegada del cuerpo.
-  const cuello = new THREE.CylinderGeometry(0.032, 0.04, 0.13, 6)
-  cuello.rotateX(-0.85)
-  cuello.translate(0, 0.05, -0.19)
-  return fusionar([cabeza, hocico, orejaI, orejaD, cuello])
+  const cabeza = tuboPerfilado(
+    [
+      // Nace adentro del pecho, así el cuello no se despega del torso.
+      new THREE.Vector3(0, 0.0, -0.13),
+      new THREE.Vector3(0, 0.055, -0.18),
+      new THREE.Vector3(0, 0.092, -0.235),
+      new THREE.Vector3(0, 0.082, -0.29),
+      new THREE.Vector3(0, 0.062, -0.335),
+    ],
+    (t) => {
+      // Cuello, que se ensancha hacia la nuca.
+      if (t < 0.34) return THREE.MathUtils.lerp(0.5, 0.78, t / 0.34)
+      // Cráneo: la parte más ancha.
+      if (t < 0.56) return THREE.MathUtils.lerp(0.78, 1.0, (t - 0.34) / 0.22)
+      // El stop: la caída rápida de la frente al puente del hocico.
+      if (t < 0.68) return THREE.MathUtils.lerp(1.0, 0.62, (t - 0.56) / 0.12)
+      // Y el hocico, que se afina despacio hasta la trufa.
+      return THREE.MathUtils.lerp(0.62, 0.34, (t - 0.68) / 0.32)
+    },
+    { segmentos: 22, lados: 12, radio: 0.077, tapas: true },
+  )
+
+  /*
+   * Orejas caídas: elipsoides chatos colgando del costado del cráneo, con
+   * una inclinación hacia afuera. La oreja que cuelga es lo que separa a
+   * este perro de la ardilla en una silueta de cuarenta píxeles, así que
+   * pesa más de lo que su tamaño sugiere.
+   */
+  const orejas: THREE.BufferGeometry[] = []
+  for (const lado of [-1, 1]) {
+    const o = new THREE.SphereGeometry(0.024, 9, 7)
+    o.scale(0.42, 1.5, 0.85)
+    o.rotateZ(lado * 0.3)
+    o.translate(lado * 0.062, 0.088, -0.232)
+    orejas.push(o)
+  }
+
+  return fusionar([cabeza, ...orejas])
 }
 
 /**
- * Una pata suelta, colgando de su cadera.
+ * Una pata delantera, colgando de su hombro.
  *
  * Son CUATRO mallas separadas y no un bloque fusionado, porque un perro que
  * se desliza con las patas rígidas se lee como un bug —lo reportó el equipo
  * con esas palabras—. Sueltas, trotan en pares diagonales, que es como trota
  * un perro de verdad.
+ *
+ * Dejó de ser un cilindro, y esto era lo más visible de los tres animales:
+ * cuatro cilindros idénticos, rectos, del mismo grosor de arriba abajo y
+ * cortados en seco al ras del suelo. Sin codo, sin garra y sin nada que los
+ * uniera al cuerpo — en el banco se veían literalmente despegados del
+ * torso, cuatro palos flotando debajo del poroto.
+ *
+ * La delantera es casi recta —un perro apoya el brazo casi a plomo— con un
+ * codo apenas insinuado hacia atrás y una garra corta adelante.
  */
 function crearPata(): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(0.02, 0.024, 0.16, 5)
-  // El origen queda en la cadera para que la rotación sea desde ahí.
-  g.translate(0, -0.08, 0)
+  const g = miembro({
+    alto: 0.075,
+    bajo: 0.075,
+    // Codo hacia atrás, poco: la delantera de un perro es casi una columna.
+    quiebre: 0.018,
+    radioCadera: 0.03,
+    radioMedio: 0.019,
+    radioTobillo: 0.016,
+    pie: 0.036,
+  })
+  /*
+   * El origen sube dentro del hombro en vez de quedar en la superficie.
+   * Ese medio centímetro es lo que cierra el hueco entre la pata y el
+   * torso: el arranque del miembro queda METIDO en el cuerpo, como una
+   * articulación de verdad, en vez de tocarlo de punta.
+   */
+  g.translate(0, 0.022, 0)
   return g
 }
 
 /**
- * Pata trasera: el mismo cilindro más un muslo —esfera achatada arriba, el
- * mismo truco que la ardilla—. Va fusionado adentro de la malla de la pata
- * para no sumar draw calls; la pata sigue siendo una malla separada con su
- * ref, así trota y se levanta igual que antes.
+ * Pata trasera: más angulada y con muslo.
+ *
+ * En un perro las dos traseras no son las delanteras repetidas. El fémur es
+ * corto y grueso, el corvejón se quiebra fuerte hacia ATRÁS y el pie es
+ * largo. Esa zeta es la que da el empuje y la que se reconoce de perfil; con
+ * las cuatro patas iguales el animal se lee como una mesa.
+ *
+ * El muslo va fusionado adentro de esta malla para no sumar draw calls, y la
+ * pata sigue siendo una malla separada con su ref, así trota y se levanta
+ * igual que antes.
  */
 function crearPataTrasera(): THREE.BufferGeometry {
-  const pata = crearPata()
-  const muslo = new THREE.SphereGeometry(0.036, 6, 5)
-  muslo.scale(0.7, 1.15, 1.2)
-  muslo.translate(0, -0.035, 0)
+  const pata = miembro({
+    alto: 0.062,
+    bajo: 0.088,
+    // El quiebre del corvejón, bastante más marcado que el codo delantero.
+    quiebre: 0.042,
+    radioCadera: 0.034,
+    radioMedio: 0.018,
+    radioTobillo: 0.014,
+    pie: 0.042,
+  })
+  pata.translate(0, 0.022, 0)
+
+  const muslo = new THREE.SphereGeometry(0.042, 10, 8)
+  muslo.scale(0.68, 1.15, 1.0)
+  muslo.translate(0, -0.012, 0.006)
+
   return fusionar([pata, muslo])
 }
 
 /**
- * Cola con curva: un tubo corto sobre una curva de 3 puntos que sube con una
- * leve comba, en vez del cilindro recto que parecía una antena. El pivote
- * sigue en la base (el origen de la malla), así el meneo por rotation del
- * bucle no cambia.
+ * Cola en gancho, gruesa en la base y afinada hacia la punta.
+ *
+ * Era un tubo de grosor constante —0.014 de radio de punta a punta— y a esa
+ * escala se leía como una antena o un alambre: ninguna cola de perro tiene
+ * el mismo diámetro en el nacimiento que en la punta, porque el nacimiento
+ * es una prolongación de la grupa y la punta es sólo pelo.
+ *
+ * Además ahora se arquea hacia adelante en el último tramo. Una cola alta y
+ * curvada sobre el lomo es la de un perro contento, y este perro está
+ * contento todo el tiempo: el bucle le mueve la cola más rápido cuanto
+ * mejor la está pasando. Que la forma en reposo ya diga lo mismo que dice
+ * el movimiento es lo que hace que el gesto se lea entero.
+ *
+ * El pivote sigue en la base —el origen de la malla— así que el meneo por
+ * rotation del bucle no cambia.
  */
 function crearColita(): THREE.BufferGeometry {
-  const curva = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(0, 0.05, 0.06),
-    new THREE.Vector3(0, 0.13, 0.09),
-  ])
-  return new THREE.TubeGeometry(curva, 8, 0.014, 5, false)
+  return tuboPerfilado(
+    [
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0.055, 0.055),
+      new THREE.Vector3(0, 0.115, 0.075),
+      new THREE.Vector3(0, 0.165, 0.055),
+      new THREE.Vector3(0, 0.19, 0.015),
+    ],
+    (t) => {
+      // Nace del grosor de la grupa y termina en pelo.
+      const base = THREE.MathUtils.lerp(1, 0.32, Math.pow(t, 0.8))
+      return base * pelaje(t, 9, 0.08)
+    },
+    { segmentos: 18, lados: 8, radio: 0.026, tapas: true },
+  )
 }
 
 /**
@@ -182,25 +321,6 @@ function crearChorrito(): THREE.BufferGeometry {
     new THREE.Vector3(0.22, -0.26, 0.16),
   ])
   return new THREE.TubeGeometry(curva, 8, 0.018, 4, false)
-}
-
-function fusionar(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const total = geos.reduce((n, g) => n + (g.attributes.position as THREE.BufferAttribute).count, 0)
-  const pos = new Float32Array(total * 3)
-  const idx: number[] = []
-  let off = 0
-  for (const g of geos) {
-    const p = g.attributes.position as THREE.BufferAttribute
-    pos.set(p.array as Float32Array, off * 3)
-    const i = g.getIndex()
-    if (i) for (let k = 0; k < i.count; k++) idx.push(i.getX(k) + off)
-    off += p.count
-  }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-  geo.setIndex(idx)
-  geo.computeVertexNormals()
-  return geo
 }
 
 interface Paseo {
@@ -228,15 +348,22 @@ export default function Perrito({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro'
   const colitaGeo = useMemo(crearColita, [])
   const chorritoGeo = useMemo(crearChorrito, [])
 
+  /*
+   * Cuerpo sombreado. Ver faunaMaterial.ts: con MeshBasicMaterial el perro
+   * era una silueta rellena de un color liso, y sus cuatro patas —cuatro
+   * cilindros sueltos— no tenían forma de distinguirse del torso.
+   *
+   * El chorrito NO usa este material y sigue en básico, a propósito: es un
+   * tubo finito de color plano al que el bucle le maneja la opacidad
+   * cuadro a cuadro para el fundido de entrada y de salida, y darle
+   * volumen a un chorro de pis es resolver un problema que nadie tiene.
+   */
   const material = useMemo(() => {
     const ap = APARIENCIA[tema]
-    return new THREE.MeshBasicMaterial({
-      color: new THREE.Color(ap.cuerpo),
-      transparent: true,
-      opacity: ap.cuerpoOpacidad,
-      blending: ap.blending,
-      depthWrite: false,
-      toneMapped: false,
+    return createFaunaMaterial({
+      color: ap.cuerpo,
+      opacidad: ap.cuerpoOpacidad * (tema === 'oscuro' ? 0.78 : 1),
+      tema,
     })
   }, [tema])
 
