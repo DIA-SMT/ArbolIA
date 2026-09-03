@@ -15,6 +15,7 @@ import Ardilla from './Ardilla'
 import Perrito from './Perrito'
 import Sol from './Sol'
 import Diagnostics, { type DiagInfo } from './Diagnostics'
+import { CIELO } from './temaEscena'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
 interface Props {
@@ -85,10 +86,10 @@ export default function TreeScene({
         la profundidad, sobre fondo claro tiene que dibujar el contorno o
         las ramas del fondo se pierden contra el blanco.
       */}
-      <color attach="background" args={[tema === 'claro' ? '#f7fafd' : '#050a12']} />
+      <color attach="background" args={[CIELO[tema].fondo]} />
       <fog
         attach="fog"
-        args={tema === 'claro' ? ['#e9f1f9', 8.5, 19] : ['#071220', 9.5, 21]}
+        args={[CIELO[tema].niebla, CIELO[tema].cerca, CIELO[tema].lejos]}
       />
 
       <CameraRig celebration={celebration} escalaRef={escalaRef} />

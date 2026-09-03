@@ -217,20 +217,38 @@ export default function Leaves({ ideas, growth, quality, tema = 'oscuro' }: Prop
     const nextIds = ideas.map((i) => i.id)
 
     /*
-     * Un cambio de tema obliga a repintar la copa entera.
+     * Un cambio de tema repinta la copa, y NADA MÁS que eso.
      *
-     * Sin esto el efecto se saltea el trabajo: los ids son los mismos, así
-     * que da append puro de largo cero y sale por el return de abajo sin
-     * tocar un color. Las hojas ya plantadas se quedaban con el tinte del
-     * tema anterior y sólo las que llegaran después nacían con el nuevo:
-     * media copa de cada uno.
+     * Hacen falta las dos mitades de esa frase. Sin repintar, el efecto se
+     * saltea el trabajo —los ids son los mismos, así que da append puro de
+     * largo cero— y las hojas ya plantadas se quedaban con el tinte del
+     * tema anterior: media copa de cada uno.
+     *
+     * Pero pasar por el camino de "recalcular todo" era demasiado: ese
+     * camino llama a placeAll() y VACÍA el mapa de brotes, así que una hoja
+     * que estuviera creciendo en ese instante saltaba de golpe a su tamaño
+     * final. Justo la hoja recién llegada, que es la que alguien está
+     * mirando aparecer.
+     *
+     * Acá sólo se reescribe el color de cada instancia. Las matrices no se
+     * tocan, así que las escalas a medio brote sobreviven, y el bucle de
+     * animación sigue exactamente donde estaba.
      */
-    const cambioDeTema = temaVisto.current !== tema
-    temaVisto.current = tema
+    if (temaVisto.current !== tema) {
+      temaVisto.current = tema
+      const colorTema = new THREE.Color()
+      for (let i = 0; i < mesh.count; i++) {
+        const leaf = placedRef.current[i]
+        if (leaf) mesh.setColorAt(i, segunFondo(colorTema, leaf.color, tema))
+      }
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+      // Si además cambió el conjunto de ideas, sigue de largo y lo resuelve
+      // abajo; si no, no hay nada más que hacer.
+      if (nextIds.length === previous.length) return
+    }
 
     // ¿Es un append puro? (el caso normal: llegó una idea nueva)
     const isAppend =
-      !cambioDeTema &&
       nextIds.length >= previous.length &&
       previous.every((id, index) => nextIds[index] === id)
 

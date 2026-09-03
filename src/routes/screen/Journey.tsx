@@ -138,34 +138,54 @@ export default function Journey({ idea, indexInCategory, tema = 'oscuro' }: Prop
     [],
   )
 
-  // Reinicio al llegar una idea nueva.
+  /*
+   * Reinicio al llegar una idea nueva. SÓLO cuando cambia el viaje.
+   *
+   * Esto estaba junto con el recoloreado de abajo, en un solo efecto que
+   * también dependía del tema y de los cuatro materiales —que se rehacen
+   * cuando el tema cambia—. O sea: si el operador tocaba Ctrl+L mientras la
+   * idea de alguien estaba subiendo por el tronco, elapsedRef volvía a cero
+   * y la partícula ARRANCABA DE NUEVO desde las raíces.
+   *
+   * Es el peor momento posible para un reinicio: esa persona está parada
+   * delante de la pantalla mirando subir su idea. Separado, el cambio de
+   * fondo no toca el viaje.
+   */
   useEffect(() => {
     elapsedRef.current = 0
+    if (!journey) return
 
-    if (journey) {
-      aplicarTemaColor(trailMaterial.color, journey.color, tema)
-      aplicarTemaColor(burstMaterial.color, journey.color, tema)
-      /*
-       * La cabeza va incandescente: el color del área tirado hacia el
-       * extremo del rango. Sobre negro ese extremo es el blanco; sobre
-       * papel, el blanco ES el fondo, así que ahí el extremo del gesto es
-       * la tinta institucional y la cabeza se vuelve la parte más OSCURA
-       * de la chispa. Mismo gesto, signo invertido.
-       */
-      aplicarTemaColor(headMaterial.color, journey.color, tema).lerp(NUCLEO_TEMA[tema], 0.45)
-      aplicarTemaColor(leafMaterial.color, journey.color, tema)
-
-      // Direcciones fijas del estallido de llegada.
-      const dirs = burstDirsRef.current
-      for (let i = 0; i < BURST_POINTS; i++) {
-        const theta = Math.random() * Math.PI * 2
-        const phi = Math.acos(2 * Math.random() - 1)
-        const speed = 0.35 + Math.random() * 0.75
-        dirs[i * 3] = Math.sin(phi) * Math.cos(theta) * speed
-        dirs[i * 3 + 1] = Math.cos(phi) * speed * 0.8 + 0.25
-        dirs[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * speed
-      }
+    // Direcciones fijas del estallido de llegada.
+    const dirs = burstDirsRef.current
+    for (let i = 0; i < BURST_POINTS; i++) {
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.acos(2 * Math.random() - 1)
+      const speed = 0.35 + Math.random() * 0.75
+      dirs[i * 3] = Math.sin(phi) * Math.cos(theta) * speed
+      dirs[i * 3 + 1] = Math.cos(phi) * speed * 0.8 + 0.25
+      dirs[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * speed
     }
+  }, [journey])
+
+  /*
+   * El vestuario, que sí sigue al tema. Repinta sin tocar el reloj: si el
+   * fondo cambia a mitad de un viaje, la chispa cambia de color donde está
+   * y sigue subiendo.
+   */
+  useEffect(() => {
+    if (!journey) return
+
+    aplicarTemaColor(trailMaterial.color, journey.color, tema)
+    aplicarTemaColor(burstMaterial.color, journey.color, tema)
+    /*
+     * La cabeza va incandescente: el color del área tirado hacia el
+     * extremo del rango. Sobre negro ese extremo es el blanco; sobre
+     * papel, el blanco ES el fondo, así que ahí el extremo del gesto es
+     * la tinta institucional y la cabeza se vuelve la parte más OSCURA
+     * de la chispa. Mismo gesto, signo invertido.
+     */
+    aplicarTemaColor(headMaterial.color, journey.color, tema).lerp(NUCLEO_TEMA[tema], 0.45)
+    aplicarTemaColor(leafMaterial.color, journey.color, tema)
   }, [journey, tema, trailMaterial, burstMaterial, headMaterial, leafMaterial])
 
   // Sin dispose() manual: rompería el montaje doble de StrictMode.

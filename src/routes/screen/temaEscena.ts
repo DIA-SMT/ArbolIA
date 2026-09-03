@@ -87,6 +87,31 @@ export function aplicarTemaColor(
  * papel eso las borra, así que ahí el extremo del gesto no es el blanco
  * sino la tinta institucional.
  */
+/**
+ * El cielo de cada tema: fondo de la escena y niebla.
+ *
+ * Vive acá, y no escrito a mano en el JSX de TreeScene, porque hay DOS
+ * lugares que necesitan saberlo y uno de ellos lo estaba adivinando.
+ *
+ * Sol.tsx tiñe el cielo mientras el astro está alto y después lo devuelve a
+ * su color. Para poder devolverlo, clonaba scene.background al ARRANCAR el
+ * paso. Eso funciona hasta que el operador toca Ctrl+L a mitad de un paso:
+ * a partir de ahí Sol sostiene el cielo del tema viejo, y al terminar el
+ * evento lo "restaura" —al tema viejo— encima del nuevo. El fondo quedaba
+ * equivocado hasta el próximo paso del astro, que puede tardar minutos.
+ *
+ * Con la tabla, Sol no captura nada: siempre sabe cuál es el cielo sin
+ * teñir del tema que está corriendo AHORA.
+ *
+ * En claro la niebla se acerca a propósito: sobre fondo oscuro difumina la
+ * profundidad, sobre fondo claro tiene que dibujar el contorno o las ramas
+ * del fondo se pierden contra el blanco.
+ */
+export const CIELO: Record<Tema, { fondo: string; niebla: string; cerca: number; lejos: number }> = {
+  oscuro: { fondo: '#050a12', niebla: '#071220', cerca: 9.5, lejos: 21 },
+  claro: { fondo: '#f7fafd', niebla: '#e9f1f9', cerca: 8.5, lejos: 19 },
+}
+
 export const NUCLEO_TEMA: Record<Tema, THREE.Color> = {
   // Constantes de módulo y no una función que devuelve un color nuevo:
   // esto se usa dentro de bucles de cuadro, donde crear un objeto por

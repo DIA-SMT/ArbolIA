@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getGlowTexture } from './leafAssets'
+import { CIELO } from './temaEscena'
 
 /**
  * Un astro que cada tanto pasa por detrás del árbol: sol chico con el tema
@@ -27,9 +28,9 @@ import { getGlowTexture } from './leafAssets'
  * noche—. En claro el fondo es #f7fafd casi blanco y el aditivo NO EXISTE
  * físicamente (sumar luz sobre blanco da blanco): el sol chico va con
  * blending normal y tintas doradas, y el cielo se corre hacia un día dorado
- * suave. Si el tema cambia a mitad de un evento no hace falta nada
- * especial: el próximo cuadro tiñe desde el base clonado con los objetivos
- * nuevos, y la restauración exacta ya está cubierta por el clon.
+ * suave. Si el tema cambia a mitad de un paso no hace falta nada especial:
+ * el cielo base sale de la tabla CIELO del tema activo, así que en el
+ * cuadro siguiente ya es el que corresponde, con el astro donde estaba.
  *
  * POR QUÉ SALE POR DETRÁS. A contraluz el árbol queda en silueta contra el
  * cielo teñido y se ve hermoso; por delante el disco taparía las hojas, que
@@ -180,13 +181,21 @@ export default function Sol({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) 
   const congelado = useRef(false)
 
   /*
-   * Los colores base del cielo, capturados al ARRANCAR cada evento y no al
-   * montar: el fondo sigue al tema (claro/oscuro) y puede haber cambiado
-   * entre un paso del astro y el siguiente. Se clonan una sola vez por
-   * evento y al terminar se devuelven exactos, sin acumular error de lerp.
+   * El cielo sin teñir del tema que está corriendo AHORA.
+   *
+   * Antes esto se CAPTURABA de la escena al arrancar cada paso, y ahí
+   * estaba el problema: si el operador cambiaba de tema con el astro en el
+   * cielo, este componente seguía sosteniendo el fondo del tema viejo
+   * durante todo el resto del paso y, al terminar, lo "devolvía" —al tema
+   * viejo— encima del nuevo. El fondo quedaba equivocado hasta el próximo
+   * paso del astro, que puede tardar varios minutos.
+   *
+   * Leyéndolo de la tabla del tema no hay nada que capturar ni que se pueda
+   * desincronizar: cambia el tema y en el cuadro siguiente el cielo base ya
+   * es el que corresponde, con el astro donde estaba.
    */
-  const baseFondo = useRef<THREE.Color | null>(null)
-  const baseNiebla = useRef<THREE.Color | null>(null)
+  const baseFondo = useMemo(() => new THREE.Color(CIELO[tema].fondo), [tema])
+  const baseNiebla = useMemo(() => new THREE.Color(CIELO[tema].niebla), [tema])
 
   // Temporales reutilizados: nada de esto puede crear objetos por cuadro.
   // Los objetivos del cielo se rehacen solo cuando cambia el tema.
@@ -204,26 +213,17 @@ export default function Sol({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) 
      */
     const az = Math.atan2(camera.position.x, camera.position.z) + Math.PI
 
-    // scene.background acá es un THREE.Color, pero puede ser null o una
-    // textura si alguien cambia la escena: en ese caso el cielo no se toca
-    // y queda solo el disco, que igual se sostiene por sí mismo.
-    baseFondo.current =
-      scene.background instanceof THREE.Color ? scene.background.clone() : null
-    baseNiebla.current = scene.fog ? scene.fog.color.clone() : null
-
     evento.current = { az, p: 0 }
   }
 
   const terminar = () => {
-    // Devolución EXACTA: copy del clon, no confiar en que el lerp llegó.
-    if (baseFondo.current && scene.background instanceof THREE.Color) {
-      scene.background.copy(baseFondo.current)
+    // Devolución EXACTA al cielo del tema, no al que se haya lerpeado.
+    if (scene.background instanceof THREE.Color) {
+      scene.background.copy(baseFondo)
     }
-    if (baseNiebla.current && scene.fog) {
-      scene.fog.color.copy(baseNiebla.current)
+    if (scene.fog) {
+      scene.fog.color.copy(baseNiebla)
     }
-    baseFondo.current = null
-    baseNiebla.current = null
     evento.current = null
   }
 
@@ -319,11 +319,11 @@ export default function Sol({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) 
      * se reconstruye desde el color base capturado, así el tinte es función
      * pura de la altura del astro y al volver a cero el cielo ES el base.
      */
-    if (baseFondo.current && scene.background instanceof THREE.Color) {
-      scene.background.copy(baseFondo.current).lerp(cieloFondo, brillo)
+    if (scene.background instanceof THREE.Color) {
+      scene.background.copy(baseFondo).lerp(cieloFondo, brillo)
     }
-    if (baseNiebla.current && scene.fog) {
-      scene.fog.color.copy(baseNiebla.current).lerp(cieloNiebla, brillo)
+    if (scene.fog) {
+      scene.fog.color.copy(baseNiebla).lerp(cieloNiebla, brillo)
     }
   })
 
