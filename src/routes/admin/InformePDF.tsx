@@ -170,7 +170,7 @@ export default function InformePDF({ datos, titulo, refDocumento }: Props) {
                     </div>
                   </div>
                   <h1 className="inf__titulo">{titulo ?? 'Árbol Virtual de Ideas'}</h1>
-                  <p className="inf__bajada">Lo que la ciudad dejó dicho en ExpoCom 2026</p>
+                  <p className="inf__bajada">Lo que la ciudad dejó dicho en ExpoCon 2026</p>
                 </div>
               ) : (
                 <div className="inf__banda">

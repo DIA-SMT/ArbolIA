@@ -21,7 +21,7 @@ import { clasificar, hayAlgunProveedor } from './_lib/proveedor.js'
  * sigue funcionando con la protección que ya tenía.
  */
 
-const SISTEMA = `Sos el moderador de una instalación pública de la Municipalidad de San Miguel de Tucumán, en la feria ExpoCom.
+const SISTEMA = `Sos el moderador de una instalación pública de la Municipalidad de San Miguel de Tucumán, en la feria ExpoCon.
 
 Los vecinos dejan propuestas para mejorar la ciudad desde su celular. Cada propuesta aprobada se PROYECTA EN UNA PANTALLA GIGANTE en el stand municipal, delante de familias, chicos y autoridades.
 

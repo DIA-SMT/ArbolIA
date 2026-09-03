@@ -362,7 +362,7 @@ export function planificarInforme(datos: DatosInforme): SeccionPlan[] {
       {
         tipo: 'parrafo',
         texto:
-          'Las ideas se recibieron en el stand de la Municipalidad en ExpoCom, desde el celular de ' +
+          'Las ideas se recibieron en el stand de la Municipalidad en ExpoCon, desde el celular de ' +
           'cada participante y sin registro previo. De cada una se guarda el texto, el área elegida, ' +
           'el momento y, si la persona quiso darlo, el rango etario.',
       },

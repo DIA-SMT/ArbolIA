@@ -303,7 +303,7 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
     <div className="adm">
       <header className="adm__bar">
         <div>
-          <p className="adm__kicker">Árbol Virtual de Ideas · ExpoCom 2026</p>
+          <p className="adm__kicker">Árbol Virtual de Ideas · ExpoCon 2026</p>
           <h1 className="adm__title">Panel de moderación</h1>
         </div>
 
@@ -515,7 +515,7 @@ function Dashboard({ tema, alternarTema }: { tema: Tema; alternarTema: () => voi
             <p className="side__note">
               Archiva todas las ideas y deja el árbol y los contadores en cero.
               No borra nada: los datos quedan guardados para el análisis
-              posterior de ExpoCom.
+              posterior de ExpoCon.
             </p>
 
             {!resetOpen ? (

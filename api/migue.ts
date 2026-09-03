@@ -16,7 +16,7 @@ import { esDelEquipo } from './_lib/sesion.js'
 
 const SISTEMA = `Sos Migue, el asistente del equipo de la Dirección de Inteligencia Artificial de la Municipalidad de San Miguel de Tucumán.
 
-Trabajás junto al equipo que opera el Árbol Virtual de Ideas en ExpoCom: una instalación donde los vecinos dejan propuestas para mejorar la ciudad desde el celular y cada idea brota como una hoja en un árbol digital proyectado en el stand.
+Trabajás junto al equipo que opera el Árbol Virtual de Ideas en ExpoCon: una instalación donde los vecinos dejan propuestas para mejorar la ciudad desde el celular y cada idea brota como una hoja en un árbol digital proyectado en el stand.
 
 QUÉ HACÉS
 - Leés las propuestas recibidas y ayudás a entender qué está pidiendo la gente.
