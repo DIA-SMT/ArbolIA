@@ -46,8 +46,23 @@
   /*
    * Columnas angostas a propósito. El protagonista es el árbol: los datos
    * acompañan desde el margen y no deben disputarle el centro.
+   *
+   * La derecha es la excepción, y el motivo es el QR: ocupa todo el ancho
+   * de su columna, así que ESE número es el tamaño del código.
+   *
+   * Con 15vw el QR medía 242px en 1080p —el 12,6 % del ancho— y en el
+   * televisor del stand la gente no lo enganchaba desde donde está parada.
+   * La distancia de lectura de un QR es de unas diez veces su lado: 242px
+   * en una tele de 55" son 154mm, o sea un metro y medio, menos de lo que
+   * hay entre el público y la pantalla. Con 26vw el código pasa a 445px
+   * (23,2 % del ancho, ~283mm en esa tele) y se lee desde unos tres metros.
+   *
+   * Lo que cede es el centro, que baja de 1064px a 853px en 1080p. El árbol
+   * mide unos 500px de silueta, así que sigue entrando con aire; medido
+   * también en 1280x720, donde el centro queda en 560px. Si algún día
+   * quedara justo, esto es lo primero que hay que revisar.
    */
-  grid-template-columns: minmax(290px, 22vw) 1fr minmax(205px, 15vw);
+  grid-template-columns: minmax(290px, 22vw) 1fr minmax(300px, 26vw);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     'top  top    top'
@@ -789,7 +804,10 @@
    base: la izquierda sostiene la pregunta, la derecha sólo listas. */
 @media (min-aspect-ratio: 21/9) {
   .overlay {
-    grid-template-columns: minmax(290px, 16vw) 1fr minmax(205px, 11vw);
+    /* La derecha casi no se achica, y por eso acá queda más ancha que la
+       izquierda: de ese ancho sale el tamaño del QR, y un QR que no se
+       escanea no ahorra espacio, lo desperdicia. */
+    grid-template-columns: minmax(290px, 16vw) 1fr minmax(300px, 19vw);
   }
 }
 
@@ -1180,7 +1198,15 @@
   width: 100%;
   height: auto;
   aspect-ratio: 1;
-  padding: 4%;
+  /*
+   * El blanco de la tarjeta es zona de silencio de más.
+   *
+   * El SVG ya trae 2 módulos de margen propio (ver QRPanel), y con el
+   * código a 445px eso son unos 30px de blanco. Sumado a este padding se
+   * pasaba de los 4 módulos que recomienda la especificación, o sea que se
+   * estaba gastando ancho de tarjeta en borde en vez de en código.
+   */
+  padding: 3%;
 }
 
 .overlay__right .qr__text {
