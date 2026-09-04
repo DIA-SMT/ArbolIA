@@ -4,7 +4,7 @@ import { Html, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { placeLeaf } from './leafPlacement'
 import { getCategory } from '../../lib/categories'
-import { pickNextIdea } from './labelRotation'
+import { siguienteTurno } from './labelRotation'
 import { acomodar, type Zona } from './labelLayout'
 import type { Idea } from '../../lib/types'
 
@@ -12,19 +12,6 @@ import type { Idea } from '../../lib/types'
 const SLOT_COUNT = 3
 /** Cada cuánto rota UNA etiqueta. Con 3 slots, cada una dura ~21 s. */
 const ROTATE_MS = 7000
-/**
- * Cuánto queda la copa limpia entre una ronda y la siguiente.
- *
- * Cada propuesta se muestra una vez por ronda. Cuando se agotan, las
- * etiquetas se vacían en vez de volver a girar entre las mismas: con pocas
- * ideas cargadas eso se leía como una pantalla congelada.
- *
- * Pero tampoco puede quedar muda toda la mañana si el flujo es lento, así
- * que después de este descanso arranca una ronda nueva con lo que haya.
- * Una idea repetida tras tres minutos de silencio no se lee como trabada:
- * se lee como que el árbol la está recordando.
- */
-const DESCANSO_MS = 180_000
 /** Cada cuánto se recalcula el "Hace N min". */
 const CLOCK_MS = 30_000
 /** Cuánto se separa cada etiqueta del follaje, por slot. */
@@ -144,8 +131,6 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
   const cursorRef = useRef(0)
   /** Las que ya tuvieron su turno en la ronda actual. */
   const mostradasRef = useRef<Set<string>>(new Set())
-  /** Desde cuándo no hay ninguna etiqueta en pantalla, o null. */
-  const vacioDesdeRef = useRef<number | null>(null)
   const nextSlotRef = useRef(0)
   const rotateSlotRef = useRef(0)
   const revisionRef = useRef(0)
@@ -189,11 +174,11 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
       /*
        * Sólo en el arranque de verdad.
        *
-       * "Todos los slots vacíos" ya no significa "recién cargó": ahora
-       * también es el descanso entre rondas. Sin esta condición, una idea
-       * nueva llegando durante el descanso rellenaría las tres etiquetas
-       * con las últimas del histórico, repitiendo las que ya tuvieron su
-       * turno.
+       * "Todos los slots vacíos" no significa siempre "recién cargó":
+       * también queda así cuando la moderación retira todo lo que estaba
+       * en pantalla. Sin esta condición, la idea siguiente rellenaría las
+       * tres etiquetas con las últimas del histórico, repitiendo las que
+       * ya tuvieron su turno en la ronda en curso.
        */
       if (mostradasRef.current.size > 0) return prev
 
@@ -259,13 +244,22 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
       return prev.map((slot) => {
         if (!slot.idea || vigentes.has(slot.idea.id)) return slot
 
-        const reemplazo = pickNextIdea(ideas, visibles, cursorRef.current, mostradasRef.current)
+        // Mismo criterio que la rotación: si la ronda se agotó, empieza
+        // otra en vez de dejar el hueco. El slot sólo se apaga cuando de
+        // verdad no queda ninguna propuesta para poner ahí.
+        const reemplazo = siguienteTurno(
+          ideas,
+          visibles,
+          cursorRef.current,
+          mostradasRef.current,
+          slot.idea,
+        )
         revisionRef.current += 1
 
         if (!reemplazo) return { idea: null, fresh: false, revision: revisionRef.current }
 
         cursorRef.current = reemplazo.cursor
-        mostradasRef.current.add(reemplazo.idea.id)
+        mostradasRef.current = reemplazo.mostradas
         visibles.add(reemplazo.idea.id)
         return { idea: reemplazo.idea, fresh: false, revision: revisionRef.current }
       })
@@ -275,66 +269,64 @@ export default function FloatingLabels({ ideas, visible = true }: Props) {
   /*
    * Rotación por rondas.
    *
-   * Cada propuesta hace UN turno por ronda. Cuando le llega el momento a
-   * un slot, se busca una que todavía no haya salido; si no queda ninguna,
-   * el slot se vacía. Antes se volvía a elegir del histórico completo, así
-   * que con tres ideas cargadas las mismas tres cards giraban entre ellas
-   * para siempre y la pantalla parecía trabada.
+   * Cada propuesta hace UN turno por ronda: cuando le toca a un slot, se
+   * busca una que todavía no haya salido. Antes se elegía del histórico
+   * completo, así que con tres ideas cargadas las mismas tres cards giraban
+   * entre ellas para siempre y la pantalla parecía trabada.
    *
-   * Con la copa ya limpia, arranca el descanso. Pasados unos minutos se
-   * borra la memoria de la ronda y empieza otra.
+   * Agotada la ronda, la siguiente empieza en el acto. Esto es lo que
+   * cambió: antes el slot se vaciaba y la copa se quedaba limpia tres
+   * minutos. Con el árbol recién arrancado el resultado era que las
+   * etiquetas se apagaban de a una hasta quedar UNA sola —la más vieja— y
+   * después nada, justo cuando el vecino que acababa de mandar su idea
+   * estaba mirando.
+   *
+   * La decisión se toma FUERA del actualizador. Elegir el turno mueve el
+   * cursor y la memoria de la ronda, y React puede volver a ejecutar la
+   * función que se le pasa a setSlots: hacerlo adentro era adelantar el
+   * cursor dos veces y saltearse una propuesta.
    */
   useEffect(() => {
     const timer = window.setInterval(() => {
       const actuales = slotsRef.current
-      const copaLimpia = actuales.every((s) => !s.idea)
+      const slotIndex = rotateSlotRef.current % SLOT_COUNT
+      rotateSlotRef.current = slotIndex + 1
 
-      if (copaLimpia) {
-        if (vacioDesdeRef.current === null) {
-          vacioDesdeRef.current = Date.now()
-          return
-        }
-        if (Date.now() - vacioDesdeRef.current < DESCANSO_MS) return
+      const visibles = new Set(
+        actuales.map((s) => s.idea?.id).filter((id): id is string => Boolean(id)),
+      )
+      const saliente = actuales[slotIndex].idea
+      if (saliente) visibles.delete(saliente.id)
 
-        // Se terminó el descanso: ronda nueva.
-        mostradasRef.current.clear()
-        vacioDesdeRef.current = null
-      } else {
-        vacioDesdeRef.current = null
-      }
+      const turno = siguienteTurno(
+        ideasRef.current,
+        visibles,
+        cursorRef.current,
+        mostradasRef.current,
+        saliente,
+      )
 
-      setSlots((prev) => {
-        const slotIndex = rotateSlotRef.current % SLOT_COUNT
-        rotateSlotRef.current = slotIndex + 1
+      /*
+       * No hay ninguna otra propuesta para este slot: el que está se queda.
+       *
+       * Pasa cuando hay tres ideas cargadas o menos, o sea al principio de
+       * la jornada. Quietas dicen lo que hay; vacías dicen que el árbol
+       * dejó de escuchar. Las retiradas por moderación no salen por acá:
+       * de eso se ocupa la purga, que sí vacía el slot.
+       */
+      if (!turno) return
 
-        const visibles = new Set(
-          prev.map((s) => s.idea?.id).filter((id): id is string => Boolean(id)),
-        )
-        const saliente = prev[slotIndex].idea
-        if (saliente) visibles.delete(saliente.id)
+      cursorRef.current = turno.cursor
+      mostradasRef.current = turno.mostradas
+      revisionRef.current += 1
+      const revision = revisionRef.current
+      const entrante = turno.idea
 
-        const elegida = pickNextIdea(
-          ideasRef.current,
-          visibles,
-          cursorRef.current,
-          mostradasRef.current,
-        )
-
-        revisionRef.current += 1
-        const revision = revisionRef.current
-
-        // Sin candidata, el turno se termina y no lo reemplaza nadie.
-        if (!elegida) {
-          if (!saliente) return prev
-          return prev.map((slot, i) => (i === slotIndex ? { idea: null, fresh: false, revision } : slot))
-        }
-
-        cursorRef.current = elegida.cursor
-
-        return prev.map((slot, i) =>
-          i === slotIndex ? { idea: elegida.idea, fresh: false, revision } : slot,
-        )
-      })
+      setSlots((prev) =>
+        prev.map((slot, i) =>
+          i === slotIndex ? { idea: entrante, fresh: false, revision } : slot,
+        ),
+      )
     }, ROTATE_MS)
 
     return () => window.clearInterval(timer)
