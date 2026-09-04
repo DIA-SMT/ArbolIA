@@ -70,12 +70,26 @@ export function temaInicial(ruta: string = window.location.pathname): Tema {
  * aspectos sin que nadie lo haya decidido. El celular y el panel sí
  * siguen al sistema, que es lo que la persona espera.
  */
-export function useTema(porDefecto?: Tema): [Tema, () => void] {
+export function useTema(
+  porDefecto?: Tema,
+  /**
+   * Si estampar el tema en el documento apenas cambia.
+   *
+   * La pantalla del stand pasa false porque su cambio de tema no es
+   * instantáneo: es un atardecer de varios segundos, y el overlay tiene que
+   * cruzar recién en el punto más oscuro del recorrido, no al principio.
+   * Ahí lo estampa ella cuando corresponde, llamando a aplicarTema.
+   *
+   * El celular y el panel no tienen atardecer y lo dejan en true, que es el
+   * comportamiento de siempre.
+   */
+  estamparEnElDocumento = true,
+): [Tema, () => void] {
   const [tema, setTema] = useState<Tema>(() => guardado() ?? porDefecto ?? delSistema())
 
   useEffect(() => {
-    aplicarTema(tema)
-  }, [tema])
+    if (estamparEnElDocumento) aplicarTema(tema)
+  }, [tema, estamparEnElDocumento])
 
   // Si nadie eligió, seguir al sistema cuando el sistema cambie.
   useEffect(() => {

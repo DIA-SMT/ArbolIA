@@ -1285,3 +1285,75 @@
     opacity: 0.9;
   }
 }
+
+/* =====================================================================
+   El cruce del overlay durante el atardecer
+
+   El 3D pasa del día a la noche en dieciocho segundos, pero el overlay
+   cambia de golpe: sus colores salen de tokens CSS y las variables
+   personalizadas no se animan con transition.
+
+   La solución no es animarlas sino ESCONDER el corte. El cambio ocurre
+   exactamente en la mitad del atardecer —el punto más oscuro del
+   recorrido, donde ScreenRoute recién estampa data-tema— y estas
+   transiciones lo estiran medio segundo. Con la escena en su momento más
+   apagado y medio segundo de fundido, el salto deja de leerse como un
+   corte y pasa por parte de la caída de la luz.
+
+   Se anima la propiedad FINAL, no el token: color y background-color sí
+   transicionan; var(--loquesea) no.
+
+   Y no se escribe ninguna variable por cuadro, a propósito. FloatingLabels
+   hace getBoundingClientRect dentro de su useFrame para resolver
+   colisiones de etiquetas; una custom property cambiando en :root
+   invalidaría el estilo del documento entero sesenta veces por segundo y
+   cada una de esas lecturas forzaría un recálculo.
+   ===================================================================== */
+
+/*
+ * La lista es EXPLÍCITA, no un selector universal.
+ *
+ * La primera versión aplicaba la transición a TODO el overlay con un
+ * selector universal, y eso es una trampa en
+ * esta pantalla: FloatingLabels crea un nodo por idea visible y además hace
+ * getBoundingClientRect dentro de su useFrame para resolver colisiones de
+ * etiquetas. Poner una transition sobre cada uno de esos nodos multiplica el
+ * trabajo de estilo justo donde el bucle ya está leyendo layout sesenta
+ * veces por segundo.
+ *
+ * Acá van sólo las superficies que efectivamente cambian de color con el
+ * tema: las tarjetas, la barra institucional y el logo enmascarado.
+ */
+.overlay__logo,
+.overlay__event,
+.overlay__event-name,
+.ask__title,
+.ask__phrase,
+.panel,
+.goal,
+.areas,
+.recent,
+.qr,
+.status {
+  transition:
+    background-color 600ms ease,
+    border-color 600ms ease,
+    color 600ms ease,
+    box-shadow 600ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay__logo,
+  .overlay__event,
+  .overlay__event-name,
+  .ask__title,
+  .ask__phrase,
+  .panel,
+  .goal,
+  .areas,
+  .recent,
+  .qr,
+  .status {
+    transition: none;
+  }
+}

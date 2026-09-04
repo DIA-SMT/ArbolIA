@@ -18,6 +18,7 @@ import Cielo from './Cielo'
 import Tierra from './Tierra'
 import Diagnostics, { type DiagInfo } from './Diagnostics'
 import { CIELO } from './temaEscena'
+import { DURACION_S, cieloAhora, curva, escribirCieloBase } from './atardecer'
 import type { GrowthProfile, Idea } from '../../lib/types'
 
 interface Props {
@@ -37,6 +38,18 @@ interface Props {
   labelsVisible: boolean
   /** Permite apagar el postprocesado (?fx=off) para aislar problemas. */
   postprocessing: boolean
+  /**
+   * La fase del atardecer, 0 = día y 1 = noche, escrita por cuadro.
+   *
+   * Va por referencia y no por prop de estado por el mismo motivo que
+   * escalaRef: se escribe sesenta veces por segundo y traerla al estado de
+   * React re-renderizaría el árbol entero en cada cuadro.
+   */
+  faseRef: React.MutableRefObject<number>
+  /** Hacia dónde va la fase: la sale del tema que pidió el operador. */
+  faseObjetivo: number
+  /** Se llama UNA vez, cuando la fase cruza la mitad. Ahí cambia el tema. */
+  onCruzarLaMitad: () => void
   onDiagnostics?: (d: DiagInfo) => void
 }
 
@@ -51,6 +64,9 @@ export default function TreeScene({
   quality,
   labelsVisible,
   postprocessing,
+  faseRef,
+  faseObjetivo,
+  onCruzarLaMitad,
   onDiagnostics,
 }: Props) {
   // Cuántas hojas de la categoría entrante ya están plantadas: define el slot
@@ -84,14 +100,24 @@ export default function TreeScene({
         identidad, no decoración, y cambiarlos sería otra instalación. Lo
         que cambia es sobre qué está.
 
+        LOS ARGS SON FIJOS A PROPÓSITO. Antes salían de CIELO[tema], y con
+        eso cada Ctrl+L construía un THREE.Color y un THREE.Fog nuevos: un
+        salto estructural justo cuando lo que se quiere es un atardecer. Acá
+        los objetos se crean UNA vez y su color lo escribe el director cuadro
+        a cuadro, interpolando entre el día y la noche.
+
         En claro la niebla se acerca un poco: sobre fondo oscuro difumina
         la profundidad, sobre fondo claro tiene que dibujar el contorno o
-        las ramas del fondo se pierden contra el blanco.
+        las ramas del fondo se pierden contra el blanco. Esa distancia
+        también la interpola el director.
       */}
-      <color attach="background" args={[CIELO[tema].fondo]} />
-      <fog
-        attach="fog"
-        args={[CIELO[tema].niebla, CIELO[tema].cerca, CIELO[tema].lejos]}
+      <color attach="background" args={[CIELO.oscuro.fondo]} />
+      <fog attach="fog" args={[CIELO.oscuro.niebla, CIELO.oscuro.cerca, CIELO.oscuro.lejos]} />
+
+      <DirectorDelAtardecer
+        faseRef={faseRef}
+        objetivo={faseObjetivo}
+        onCruzarLaMitad={onCruzarLaMitad}
       />
 
       <CameraRig celebration={celebration} escalaRef={escalaRef} />
@@ -100,7 +126,7 @@ export default function TreeScene({
         El cielo va ANTES que la atmósfera y fuera de GrowthRig: está pegado
         al ojo, no al árbol, y no crece con él. Ver Cielo.tsx.
       */}
-      <Cielo tema={tema} />
+      <Cielo tema={tema} faseRef={faseRef} />
 
       <Atmosphere growth={growth} escalaRef={escalaRef} tema={tema} />
 
@@ -109,7 +135,7 @@ export default function TreeScene({
         escalado, asi que el nivel del suelo no se mueve cuando el arbol
         crece. Ver Tierra.tsx.
       */}
-      <Tierra tema={tema} />
+      <Tierra tema={tema} faseRef={faseRef} />
 
       {/*
         Todo el árbol vive dentro del mismo grupo escalado: estructura,
@@ -475,6 +501,80 @@ function BloomDriver({
 
     const base = 0.62 + growth.glowIntensity * 0.28
     effect.intensity = base + boostRef.current * 1.5
+  })
+
+  return null
+}
+
+/**
+ * El director del atardecer: mueve la fase y avisa cuando cruza la mitad.
+ *
+ * Es lo primero que corre de la escena, y tiene que serlo: escribe el cielo
+ * base del instante, y Cielo, Tierra y Sol lo leen después en el mismo
+ * cuadro. Si corriera último, todos dibujarían con el cielo del cuadro
+ * anterior y el atardecer iría un cuadro atrasado respecto del fondo.
+ *
+ * EL CRUCE SE DETECTA POR FLANCO, no por ventana, y esto es lo que evita el
+ * peor fallo posible de esta pieza.
+ *
+ * Si el cambio de tema colgara de "¿la fase está cerca de 0.5?", alcanzaría
+ * con que el navegador dejara de dar cuadros —el operador se va al panel
+ * admin, o minimiza— para que al volver la fase pasara de largo y el tema
+ * NO CAMBIARA NUNCA. El resultado sería el árbol dibujado en modo aditivo
+ * sobre un cielo casi blanco: la fauna, la atmósfera, la partícula de la
+ * vecina y el fruto que cae dejan de verse por completo (sumar luz sobre
+ * blanco da blanco, que es lo que documenta temaEscena.ts).
+ *
+ * Con el flanco —antes de un lado, ahora del otro— el cruce se dispara
+ * aunque el salto sea enorme. Y como además el paso está acotado por el
+ * clamp de delta, la fase no puede saltearse la mitad ni con un cuadro de
+ * medio segundo: a 18 s de recorrido y 0.05 s de paso máximo, cada cuadro
+ * avanza como mucho 0.0028.
+ */
+function DirectorDelAtardecer({
+  faseRef,
+  objetivo,
+  onCruzarLaMitad,
+}: {
+  faseRef: React.MutableRefObject<number>
+  objetivo: number
+  onCruzarLaMitad: () => void
+}) {
+  const { scene } = useThree()
+
+  useFrame((_, delta) => {
+    const antes = faseRef.current
+
+    if (antes !== objetivo) {
+      // Clamp del paso: un cuadro largo no puede pegar un salto.
+      const paso = Math.min(delta, 0.05) / DURACION_S
+      faseRef.current =
+        objetivo > antes ? Math.min(objetivo, antes + paso) : Math.max(objetivo, antes - paso)
+    }
+
+    const ahora = faseRef.current
+    if ((antes < 0.5 && ahora >= 0.5) || (antes > 0.5 && ahora <= 0.5)) {
+      onCruzarLaMitad()
+    }
+
+    /*
+     * El cielo base del instante, con la curva del atardecer aplicada. Se
+     * publica en el módulo para que Sol lo use como base de su teñido en
+     * vez de la tabla del tema: así el paso del astro sigue funcionando
+     * igual en medio de un atardecer, sin que los dos se peleen por
+     * scene.background.
+     */
+    escribirCieloBase(curva(ahora))
+
+    if (scene.background instanceof THREE.Color) {
+      scene.background.copy(cieloAhora.fondo)
+    }
+    if (scene.fog) {
+      scene.fog.color.copy(cieloAhora.niebla)
+      const niebla = scene.fog as THREE.Fog
+      niebla.near = cieloAhora.cerca
+      niebla.far = cieloAhora.lejos
+    }
   })
 
   return null

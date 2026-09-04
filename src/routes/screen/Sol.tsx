@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getGlowTexture } from './leafAssets'
-import { CIELO } from './temaEscena'
+import { astro } from './atardecer'
 
 /**
  * Un astro que cada tanto pasa por detrás del árbol: sol chico con el tema
@@ -136,7 +136,7 @@ export default function Sol({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) 
   const grupo = useRef<THREE.Group>(null)
   const halo = useRef<THREE.Sprite>(null)
   const nucleo = useRef<THREE.Sprite>(null)
-  const { camera, scene } = useThree()
+  const { camera } = useThree()
 
   const ap = APARIENCIA[tema]
 
@@ -181,21 +181,15 @@ export default function Sol({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) 
   const congelado = useRef(false)
 
   /*
-   * El cielo sin teñir del tema que está corriendo AHORA.
+   * El cielo base ya no vive acá.
    *
-   * Antes esto se CAPTURABA de la escena al arrancar cada paso, y ahí
-   * estaba el problema: si el operador cambiaba de tema con el astro en el
-   * cielo, este componente seguía sosteniendo el fondo del tema viejo
-   * durante todo el resto del paso y, al terminar, lo "devolvía" —al tema
-   * viejo— encima del nuevo. El fondo quedaba equivocado hasta el próximo
-   * paso del astro, que puede tardar varios minutos.
-   *
-   * Leyéndolo de la tabla del tema no hay nada que capturar ni que se pueda
-   * desincronizar: cambia el tema y en el cuadro siguiente el cielo base ya
-   * es el que corresponde, con el astro donde estaba.
+   * Este componente capturaba scene.background al arrancar cada paso para
+   * poder devolverlo al terminar, y eso traía un bug largo: si el operador
+   * cambiaba de tema con el astro arriba, al terminar restauraba el cielo
+   * del tema VIEJO encima del nuevo. Ahora Sol no lee ni escribe el cielo:
+   * publica su tinte en atardecer.ts y el director lo compone sobre el
+   * fondo de la fase. Un solo escritor, y nada que restaurar.
    */
-  const baseFondo = useMemo(() => new THREE.Color(CIELO[tema].fondo), [tema])
-  const baseNiebla = useMemo(() => new THREE.Color(CIELO[tema].niebla), [tema])
 
   // Temporales reutilizados: nada de esto puede crear objetos por cuadro.
   // Los objetivos del cielo se rehacen solo cuando cambia el tema.
@@ -217,13 +211,16 @@ export default function Sol({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) 
   }
 
   const terminar = () => {
-    // Devolución EXACTA al cielo del tema, no al que se haya lerpeado.
-    if (scene.background instanceof THREE.Color) {
-      scene.background.copy(baseFondo)
-    }
-    if (scene.fog) {
-      scene.fog.color.copy(baseNiebla)
-    }
+    /*
+     * Ya no se restaura nada: se apaga el tinte y listo.
+     *
+     * Antes acá se devolvía scene.background y scene.fog a mano, y ese era
+     * el origen de un bug largo —restaurar el cielo del tema viejo encima
+     * del nuevo—. Publicando el tinte, el cielo lo compone el director del
+     * atardecer a partir de la fase, así que apagar el astro es poner su
+     * brillo en cero y no tocar la escena.
+     */
+    astro.brillo = 0
     evento.current = null
   }
 
@@ -319,12 +316,14 @@ export default function Sol({ tema = 'oscuro' }: { tema?: 'claro' | 'oscuro' }) 
      * se reconstruye desde el color base capturado, así el tinte es función
      * pura de la altura del astro y al volver a cero el cielo ES el base.
      */
-    if (scene.background instanceof THREE.Color) {
-      scene.background.copy(baseFondo).lerp(cieloFondo, brillo)
-    }
-    if (scene.fog) {
-      scene.fog.color.copy(baseNiebla).lerp(cieloNiebla, brillo)
-    }
+    /*
+     * El cielo NO se escribe acá: se publica hacia dónde tira el astro y
+     * con cuánta fuerza. El director del atardecer lo compone sobre el
+     * fondo de la fase. Ver atardecer.ts.
+     */
+    astro.brillo = brillo
+    astro.fondo.copy(cieloFondo)
+    astro.niebla.copy(cieloNiebla)
   })
 
   return (

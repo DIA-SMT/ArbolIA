@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { CIELO, type Tema } from './temaEscena'
+import { cieloAhora, curva } from './atardecer'
 
 /**
  * El cielo: un cilindro pegado al ojo.
@@ -212,24 +213,44 @@ function crearMascaraDeNubes(): THREE.Texture {
   return tex
 }
 
-export default function Cielo({ tema = 'oscuro' }: { tema?: Tema }) {
+export default function Cielo({
+  tema = 'oscuro',
+  faseRef,
+}: {
+  tema?: Tema
+  /** Fase del atardecer: 0 día, 1 noche. Ver atardecer.ts. */
+  faseRef?: React.MutableRefObject<number>
+}) {
   const malla = useRef<THREE.Mesh>(null)
   const { scene } = useThree()
-  const ap = CIELO[tema]
 
   const mascara = useMemo(crearMascaraDeNubes, [])
 
+  /*
+   * UN SOLO MATERIAL PARA TODA LA VIDA DE LA ESCENA.
+   *
+   * Antes dependía del tema y se recreaba en cada Ctrl+L. Eso no sólo es un
+   * salto: verificado en el fuente de three, WebGLShaderCache.materialCache
+   * es un Map FUERTE indexado por material que sólo limpia dispose(), así
+   * que cada ShaderMaterial descartado queda retenido. Con la fase moviéndose
+   * sesenta veces por segundo, atarlo a un useMemo fabricaría sesenta
+   * materiales por segundo.
+   *
+   * Todo el color vive en uniformes y la máscara de nubes es la MISMA en los
+   * dos temas, así que no hay nada que recrear: el atardecer es escribir
+   * seis colores y tres floats por cuadro.
+   */
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
         vertexShader,
         fragmentShader,
         uniforms: {
-          uCenit: { value: new THREE.Color(ap.cenit) },
-          uHorizonte: { value: new THREE.Color(ap.horizonte) },
-          uNube: { value: new THREE.Color(ap.nube) },
-          uNubeFuerza: { value: ap.nubeFuerza },
-          uTechoLuz: { value: ap.techoLuz },
+          uCenit: { value: new THREE.Color() },
+          uHorizonte: { value: new THREE.Color() },
+          uNube: { value: new THREE.Color() },
+          uNubeFuerza: { value: 0 },
+          uTechoLuz: { value: 1 },
           uMascara: { value: mascara },
         },
         // Lo vemos desde adentro: la cara que mira al ojo es la interna.
@@ -245,31 +266,44 @@ export default function Cielo({ tema = 'oscuro' }: { tema?: Tema }) {
         fog: false,
         toneMapped: false,
       }),
-    [ap, mascara],
+    [mascara],
   )
 
-  /*
-   * El tinte del astro, sin tocar una línea de Sol.tsx.
-   *
-   * Sol sigue escribiendo scene.background como siempre. Acá se lee cuánto
-   * se corrió respecto del fondo neutro del tema y ese mismo corrimiento se
-   * le suma al cielo. O sea: el amanecer sigue viviendo donde vivía, y el
-   * cielo nuevo lo obedece en vez de pisarlo.
-   *
-   * El horizonte se tiñe más que el cenit —1.25 contra 0.8— porque es lo
-   * que hace un atardecer de verdad: el color entra por abajo.
-   */
-  const neutro = useMemo(() => new THREE.Color(ap.fondo), [ap])
-  const baseCenit = useMemo(() => new THREE.Color(ap.cenit), [ap])
-  const baseHorizonte = useMemo(() => new THREE.Color(ap.horizonte), [ap])
+  // Los dos extremos del atardecer, creados una vez.
+  const dia = useMemo(() => CIELO.claro, [])
+  const noche = useMemo(() => CIELO.oscuro, [])
+  const diaCenit = useMemo(() => new THREE.Color(dia.cenit), [dia])
+  const nocheCenit = useMemo(() => new THREE.Color(noche.cenit), [noche])
+  const diaHorizonte = useMemo(() => new THREE.Color(dia.horizonte), [dia])
+  const nocheHorizonte = useMemo(() => new THREE.Color(noche.horizonte), [noche])
+  const diaNube = useMemo(() => new THREE.Color(dia.nube), [dia])
+  const nocheNube = useMemo(() => new THREE.Color(noche.nube), [noche])
+
+  const baseCenit = useMemo(() => new THREE.Color(), [])
+  const baseHorizonte = useMemo(() => new THREE.Color(), [])
   const tinte = useMemo(() => new THREE.Color(), [])
 
   useFrame(() => {
-    const m = malla.current
-    if (!m) return
+    const f = curva(faseRef ? faseRef.current : tema === 'oscuro' ? 1 : 0)
 
+    // El cielo del instante, entre el día y la noche.
+    baseCenit.lerpColors(diaCenit, nocheCenit, f)
+    baseHorizonte.lerpColors(diaHorizonte, nocheHorizonte, f)
+    ;(material.uniforms.uNube.value as THREE.Color).lerpColors(diaNube, nocheNube, f)
+    material.uniforms.uNubeFuerza.value = THREE.MathUtils.lerp(dia.nubeFuerza, noche.nubeFuerza, f)
+    material.uniforms.uTechoLuz.value = THREE.MathUtils.lerp(dia.techoLuz, noche.techoLuz, f)
+
+    /*
+     * El tinte del astro, sin tocar una línea de Sol.
+     *
+     * El director del atardecer ya escribió scene.background componiendo el
+     * fondo de la fase con el tinte que Sol publicó. Restando el fondo de la
+     * fase queda exactamente ese tinte, y el cielo lo obedece en vez de
+     * pisarlo. El horizonte se tiñe más que el cenit —1.25 contra 0.8—
+     * porque es lo que hace un atardecer de verdad: el color entra por abajo.
+     */
     if (scene.background instanceof THREE.Color) {
-      tinte.copy(scene.background).sub(neutro)
+      tinte.copy(scene.background).sub(cieloAhora.fondo)
     } else {
       tinte.setRGB(0, 0, 0)
     }

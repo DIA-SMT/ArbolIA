@@ -6,7 +6,8 @@ import { DiagnosticsHud, type DiagInfo } from './Diagnostics'
 import ScreenOverlay from './overlay/ScreenOverlay'
 import { useLiveTree } from '../../hooks/useLiveTree'
 import { getGrowthProfile } from '../../lib/growth'
-import { useTema } from '../../lib/tema'
+import { aplicarTema, useTema } from '../../lib/tema'
+import { faseDe } from './atardecer'
 
 /** Cuántas ideas recientes se listan en la columna derecha. */
 const RECENT_COUNT = 5
@@ -85,7 +86,30 @@ export default function ScreenRoute() {
    * instalación abriría con el peor de sus dos aspectos sin que nadie lo
    * haya decidido.
    */
-  const [tema, alternarTema] = useTema('oscuro')
+  /*
+   * DOS TEMAS, Y NO SON EL MISMO EN EL MISMO INSTANTE.
+   *
+   * temaPedido es lo que el operador eligió con Ctrl+L. temaEnEscena es lo
+   * que está DIBUJADO, y va atrasado: cambia recién cuando el atardecer
+   * llega a la mitad, que es el punto más oscuro del recorrido y por lo
+   * tanto donde menos se nota el corte entre luz aditiva y tinta.
+   *
+   * useTema recibe false para que NO estampe data-tema al instante: si lo
+   * hiciera, el overlay entero —tarjetas, textos, logo— saltaría en el
+   * segundo 0 mientras el cielo recién empieza a caer. Lo estampa el
+   * efecto de abajo, junto con el cruce.
+   *
+   * La FASE en sí no vive acá: vive en un ref que el director escribe
+   * sesenta veces por segundo dentro del Canvas. Traerla al estado de React
+   * re-renderizaría el árbol entero en cada cuadro.
+   */
+  const [temaPedido, alternarTema] = useTema('oscuro', false)
+  const [temaEnEscena, setTemaEnEscena] = useState(temaPedido)
+  const faseRef = useRef(faseDe(temaPedido))
+
+  useEffect(() => {
+    aplicarTema(temaEnEscena)
+  }, [temaEnEscena])
 
   useScreenShortcuts(tree.toggleSilencio, alternarTema)
   useWebGLWatchdog()
@@ -116,7 +140,10 @@ export default function ScreenRoute() {
           activeIdea={tree.activeIdea}
           criticaCayendo={tree.criticaCayendo}
           pulsoRaices={tree.pulsoRaices}
-          tema={tema}
+          tema={temaEnEscena}
+          faseRef={faseRef}
+          faseObjetivo={faseDe(temaPedido)}
+          onCruzarLaMitad={() => setTemaEnEscena(temaPedido)}
           growth={growth}
           celebration={tree.celebration}
           quality={quality}

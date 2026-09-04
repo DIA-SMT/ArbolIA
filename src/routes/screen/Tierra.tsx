@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Tema } from './temaEscena'
+import { curva } from './atardecer'
 
 /**
  * La tierra: un velo en y=0 que se ve a través.
@@ -128,20 +129,38 @@ function crearPerfilDeTierra(orilla: number): THREE.Texture {
   return tex
 }
 
-export default function Tierra({ tema = 'oscuro' }: { tema?: Tema }) {
+export default function Tierra({
+  tema = 'oscuro',
+  faseRef,
+}: {
+  tema?: Tema
+  /** Fase del atardecer: 0 día, 1 noche. Ver atardecer.ts. */
+  faseRef?: React.MutableRefObject<number>
+}) {
   const malla = useRef<THREE.Mesh>(null)
   const { camera } = useThree()
-  const ap = APARIENCIA[tema]
 
-  const perfil = useMemo(() => crearPerfilDeTierra(ap.orilla), [ap])
+  /*
+   * UNA sola textura para los dos temas, y un solo material.
+   *
+   * El perfil se horneaba con ap.orilla, así que cada Ctrl+L regeneraba un
+   * canvas de 512x512 y construía un material nuevo. Con un atardecer eso
+   * sería un tirón justo en el momento que tiene que pasar desapercibido.
+   * Los dos valores de orilla —2.2 y 2.6— dan una línea prácticamente
+   * igual, así que se hornea una sola vez con el punto medio y lo que
+   * cambia con la fase es el color y la opacidad, que son escalares.
+   */
+  const perfil = useMemo(() => crearPerfilDeTierra(2.4), [])
+  const dia = useMemo(() => new THREE.Color(APARIENCIA.claro.color), [])
+  const noche = useMemo(() => new THREE.Color(APARIENCIA.oscuro.color), [])
 
   const material = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         map: perfil,
-        color: new THREE.Color(ap.color),
+        color: new THREE.Color(),
         transparent: true,
-        opacity: ap.opacidad,
+        opacity: 1,
         /*
          * NO escribe profundidad: si la escribiera, taparía por z-buffer
          * todo lo que está bajo tierra y volveríamos al suelo opaco que
@@ -161,12 +180,25 @@ export default function Tierra({ tema = 'oscuro' }: { tema?: Tema }) {
         fog: false,
         side: THREE.DoubleSide,
       }),
-    [perfil, ap],
+    [perfil],
   )
 
   useFrame(() => {
     const m = malla.current
     if (!m) return
+
+    /*
+     * La tierra se oscurece con el atardecer. Es lo único de esta pieza que
+     * cambia con el tema, y es puro escalar: color y opacidad sobre un
+     * material que se creó una vez.
+     */
+    const f = curva(faseRef ? faseRef.current : tema === 'oscuro' ? 1 : 0)
+    material.color.lerpColors(dia, noche, f)
+    material.opacity = THREE.MathUtils.lerp(
+      APARIENCIA.claro.opacidad,
+      APARIENCIA.oscuro.opacidad,
+      f,
+    )
 
     /*
      * Radio para que el borde caiga siempre a DEPRESION_BORDE bajo la
