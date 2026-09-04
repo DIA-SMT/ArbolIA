@@ -14,6 +14,8 @@ import Pajaro from './Pajaro'
 import Ardilla from './Ardilla'
 import Perrito from './Perrito'
 import Sol from './Sol'
+import Cielo from './Cielo'
+import Tierra from './Tierra'
 import Diagnostics, { type DiagInfo } from './Diagnostics'
 import { CIELO } from './temaEscena'
 import type { GrowthProfile, Idea } from '../../lib/types'
@@ -94,7 +96,20 @@ export default function TreeScene({
 
       <CameraRig celebration={celebration} escalaRef={escalaRef} />
 
+      {/*
+        El cielo va ANTES que la atmósfera y fuera de GrowthRig: está pegado
+        al ojo, no al árbol, y no crece con él. Ver Cielo.tsx.
+      */}
+      <Cielo tema={tema} />
+
       <Atmosphere growth={growth} escalaRef={escalaRef} tema={tema} />
+
+      {/*
+        La tierra tambien va fuera de GrowthRig: y=0 es el punto fijo del
+        escalado, asi que el nivel del suelo no se mueve cuando el arbol
+        crece. Ver Tierra.tsx.
+      */}
+      <Tierra tema={tema} />
 
       {/*
         Todo el árbol vive dentro del mismo grupo escalado: estructura,

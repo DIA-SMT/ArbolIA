@@ -107,9 +107,65 @@ export function aplicarTemaColor(
  * profundidad, sobre fondo claro tiene que dibujar el contorno o las ramas
  * del fondo se pierden contra el blanco.
  */
-export const CIELO: Record<Tema, { fondo: string; niebla: string; cerca: number; lejos: number }> = {
-  oscuro: { fondo: '#050a12', niebla: '#071220', cerca: 9.5, lejos: 21 },
-  claro: { fondo: '#f7fafd', niebla: '#e9f1f9', cerca: 8.5, lejos: 19 },
+export const CIELO: Record<
+  Tema,
+  {
+    fondo: string
+    niebla: string
+    cerca: number
+    lejos: number
+    /** Arriba del todo. */
+    cenit: string
+    /** Contra el horizonte, donde el aire se acumula y aclara. */
+    horizonte: string
+    /** Las nubes. En oscuro son jirones apenas más claros que la noche. */
+    nube: string
+    /** Cuánto se ven: 0 apaga la capa entera. */
+    nubeFuerza: number
+    /**
+     * Techo de luminancia del cielo.
+     *
+     * En oscuro el bloom toma todo lo que pase 0.16 (ver TreeScene) y un
+     * cielo a pantalla completa por encima de ese umbral devuelve la misma
+     * neblina lechosa que ya nos comió el tema claro una vez, ahora sobre
+     * negro y encima de las hojas. El shader lo recorta por las malas en
+     * vez de confiar en que la paleta se porte bien: una paleta se puede
+     * elegir con cuidado, pero Sol tiñe el cielo en vivo durante 45
+     * segundos y ahí ya no hay paleta que valga.
+     *
+     * En claro no hay bloom, así que no hay techo.
+     */
+    techoLuz: number
+  }
+> = {
+  oscuro: {
+    fondo: '#050a12',
+    niebla: '#071220',
+    cerca: 9.5,
+    lejos: 21,
+    cenit: '#04080f',
+    horizonte: '#0b1526',
+    nube: '#101d31',
+    nubeFuerza: 0.55,
+    techoLuz: 0.12,
+  },
+  claro: {
+    fondo: '#f7fafd',
+    niebla: '#e9f1f9',
+    cerca: 8.5,
+    lejos: 19,
+    /*
+     * Cielo de día de verdad, que es lo que pidió el equipo. Los azules
+     * salen de la familia del celeste institucional (#3cb4f0) bajados de
+     * saturación: un cielo saturado competiría con las hojas, que son las
+     * que tienen que llevarse el color.
+     */
+    cenit: '#a9cbe8',
+    horizonte: '#e4eff8',
+    nube: '#ffffff',
+    nubeFuerza: 0.85,
+    techoLuz: 1,
+  },
 }
 
 export const NUCLEO_TEMA: Record<Tema, THREE.Color> = {
